@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Keuangan Tim RT</title>
+<meta name="theme-color" content="#061017">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=5">
+</head>
+<body class="tab-kas">
+<div class="container">
+  <header>
+    <div class="online-badge" id="onlineBadge">
+      <span class="dot"></span>
+      <span id="onlineText">Menghubungkan...</span>
+    </div>
+    <div class="brand">
+      <div class="logo-mark" aria-hidden="true">⚽</div>
+      <div>
+        <h1>Keuangan Tim RT</h1>
+        <p>Kas tim sepak bola • database terpusat • auto-sync</p>
+      </div>
+    </div>
+    <span class="header-badge" id="headerBadge">Memuat pengaturan...</span>
+    </header>
+
+  <div class="nav-wrap">
+    <div class="nav-tabs">
+      <button class="tab-btn active" data-page="pageTransaksi"><span class="tab-ico">💳</span><span class="tab-lbl">Kas</span></button>
+      <button class="tab-btn" data-page="pagePemain"><span class="tab-ico">👥</span><span class="tab-lbl">Pemain</span></button>
+      <button class="tab-btn" data-page="pageRekap"><span class="tab-ico">📊</span><span class="tab-lbl">Rekap</span></button>
+      <button class="tab-btn" data-page="pageTagih"><span class="tab-ico">📱</span><span class="tab-lbl">Tagih</span></button>
+      <button class="tab-btn" data-page="pageLaporan"><span class="tab-ico">📄</span><span class="tab-lbl">Laporan</span></button>
+      <button class="tab-btn" data-page="pageSetelan"><span class="tab-ico">⚙️</span><span class="tab-lbl">Setelan</span></button>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="stat-card saldo">
+      <div class="icon">🏦</div>
+      <h3>Saldo Kas</h3>
+      <div class="amount" id="saldoKas">Rp 0</div>
+    </div>
+    <div class="stat-card masuk">
+      <div class="icon">💰</div>
+      <h3>Total Pemasukan</h3>
+      <div class="amount" id="totalMasuk">Rp 0</div>
+    </div>
+    <div class="stat-card keluar">
+      <div class="icon">💸</div>
+      <h3>Total Pengeluaran</h3>
+      <div class="amount" id="totalKeluar">Rp 0</div>
+    </div>
+    <div class="stat-card iuran">
+      <div class="icon">🎫</div>
+      <h3>Kas Iuran</h3>
+      <div class="amount" id="totalIuran">Rp 0</div>
+    </div>
+    <div class="stat-card custom">
+      <div class="icon">⚽</div>
+      <h3>Dana Custom Bola</h3>
+      <div class="amount" id="totalCustom">Rp 0</div>
+    </div>
+  </div>
+
+  <!-- TRANSAKSI -->
+  <div id="pageTransaksi">
+    <div class="panel">
+      <div class="panel-title"><span class="ico">💳</span> Pembayaran Pemain</div>
+      <div class="info-box green">
+        💡 <strong>Aturan otomatis:</strong> Rp<span id="infoIuran">2000</span> masuk iuran, sisanya ke cicilan custom.
+        Kalau sudah <strong>lunas</strong> → semua masuk iuran.
+      </div>
+      <div class="form-row">
+        <div class="field"><label>📅 Tanggal</label><input type="date" id="tanggal"></div>
+        <div class="field"><label>👤 Pemain</label>
+          <select id="pemainSelect"><option value="">-- Pilih Pemain --</option></select>
+        </div>
+      </div>
+      <label class="field-label">Nominal Cepat</label>
+      <div class="quick-btns" id="quickBtns">
+        <button class="quick-btn" onclick="setQuick(this, 2000)">Rp2.000</button>
+        <button class="quick-btn" onclick="setQuick(this, 5000)">Rp5.000</button>
+        <button class="quick-btn" onclick="setQuick(this, 10000)">Rp10.000</button>
+        <button class="quick-btn" onclick="setQuick(this, 15000)">Rp15.000</button>
+        <button class="quick-btn" onclick="setQuick(this, 20000)">Rp20.000</button>
+        <button class="quick-btn" onclick="setQuick(this, 50000)">Rp50.000</button>
+        <button class="quick-btn lunas" onclick="lunaskan(this)">💯 Lunaskan</button>
+      </div>
+      <div class="amount-wrap" style="margin-bottom:12px;">
+        <span class="prefix">Rp</span>
+        <input type="number" id="jumlahBayar" placeholder="0" min="0" oninput="updatePreview()">
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <input type="text" id="keteranganBayar" placeholder="📝 Keterangan (opsional)">
+      </div>
+      <div class="preview-box" id="previewBox">
+        <div class="row"><span class="lbl">🏦 Masuk Iuran</span><span class="val" id="prevIuran" style="color:var(--blue);">Rp 0</span></div>
+        <div class="row"><span class="lbl">⚽ Cicilan Custom Bola</span><span class="val" id="prevCustom" style="color:var(--purple);">Rp 0</span></div>
+        <div class="row total"><span class="lbl">Total Dibayar</span><span class="val" id="prevTotal">Rp 0</span></div>
+        <div class="info" id="prevSisa"></div>
+        <div id="prevNotice"></div>
+      </div>
+      <button class="btn btn-primary" id="btnSimpanBayar" onclick="simpanPembayaranPemain()">💾 Simpan Pembayaran</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><span class="ico">➕</span> Transaksi Umum</div>
+      <div class="form-row">
+        <div class="field"><label>📅 Tanggal</label><input type="date" id="tanggalUmum"></div>
+        <div class="field"><label>🔄 Jenis</label>
+          <select id="jenisUmum">
+            <option value="masuk">💰 Pemasukan</option>
+            <option value="keluar">💸 Pengeluaran</option>
+          </select>
+        </div>
+        <div class="field"><label>🏷️ Kategori</label>
+          <select id="kategoriUmum">
+            <option value="Donasi">🎁 Donasi</option>
+            <option value="Sponsor">🤝 Sponsor</option>
+            <option value="Sewa Lapangan">🏟️ Sewa Lapangan</option>
+            <option value="Pembelian Bola">⚽ Pembelian Bola</option>
+            <option value="Peralatan">🎽 Peralatan</option>
+            <option value="Konsumsi">🥤 Konsumsi</option>
+            <option value="Iuran Turnamen">🏆 Iuran Turnamen</option>
+            <option value="Lainnya">📌 Lainnya</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>💵 Jumlah</label><input type="number" id="jumlahUmum" placeholder="0" min="0"></div>
+        <div class="field"><label>📝 Keterangan</label><input type="text" id="keteranganUmum" placeholder="Deskripsi"></div>
+      </div>
+      <button class="btn btn-success" onclick="simpanTransaksiUmum()">💾 Simpan Transaksi</button>
+      <button class="btn btn-ghost" onclick="isiContoh()">📋 Isi Contoh Data</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><span class="ico">📋</span> Riwayat Transaksi</div>
+      <div class="filter-row">
+        <select id="filterJenis" onchange="renderTabel()">
+          <option value="">🔄 Semua Jenis</option>
+          <option value="masuk">💰 Pemasukan</option>
+          <option value="keluar">💸 Pengeluaran</option>
+        </select>
+        <select id="filterPemain" onchange="renderTabel()">
+          <option value="">👥 Semua Pemain</option>
+        </select>
+        <input type="text" id="searchBox" placeholder="🔍 Cari..." oninput="renderTabel()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th>Pemain</th>
+              <th>Keterangan</th>
+              <th>Breakdown</th>
+              <th style="text-align:right;">Jumlah</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tabelBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty" style="display:none;">📭 Belum ada transaksi.</div>
+      <div class="actions">
+        <button class="btn btn-ghost" onclick="exportCSV()">📥 Export CSV</button>
+        <button class="btn btn-danger" onclick="hapusSemuaTransaksi()">🗑️ Hapus Semua</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PEMAIN -->
+  <div id="pagePemain" style="display:none;">
+    <div class="panel">
+      <div class="panel-title"><span class="ico">👥</span> Status Pembayaran Pemain</div>
+      <div class="player-picker" id="playerPickerWrap">
+        <label for="pemainPicker">👤 Pilih pemain</label>
+        <select id="pemainPicker" onchange="pilihPemainDariDaftar()">
+          <option value="">-- Pilih pemain --</option>
+        </select>
+        <p class="picker-hint">Pilih nama, lalu kartu status pemain akan tampil di bawah.</p>
+      </div>
+      <div class="player-grid player-grid-single" id="playerGrid"></div>
+      <div id="emptyPlayer" class="empty">📭 Belum ada pemain.</div>
+    </div>
+  </div>
+
+  <!-- REKAP -->
+  <div id="pageRekap" style="display:none;">
+    <div class="panel">
+      <div class="panel-title"><span class="ico">📊</span> Grafik 4 Minggu Terakhir</div>
+      <div class="chart-wrap" id="chartWrap"></div>
+      <div class="chart-legend">
+        <span><span class="legend-dot masuk"></span> Pemasukan</span>
+        <span><span class="legend-dot keluar"></span> Pengeluaran</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title"><span class="ico">🗓️</span> Rekap Per Tanggal</div>
+      <div id="rekapLatihan"></div>
+    </div>
+  </div>
+
+  <!-- TAGIH -->
+  <div id="pageTagih" style="display:none;">
+    <div class="panel">
+      <div class="panel-title"><span class="ico">📱</span> Tagih Pemain Belum Lunas</div>
+      <div class="info-box yellow">⚠️ Klik tombol WhatsApp untuk copy pesan + buka WA.</div>
+      <div id="waTargets"></div>
+      <div id="waEmpty" class="empty" style="display:none;">🎉 Semua pemain sudah lunas!</div>
+    </div>
+  </div>
+
+  <!-- LAPORAN -->
+  <div id="pageLaporan" style="display:none;">
+    <div class="panel">
+      <div class="panel-title"><span class="ico">📄</span> Laporan Keuangan</div>
+      <div class="form-row">
+        <div class="field">
+          <label>🎛️ Mode</label>
+          <select id="laporanMode" onchange="toggleModeLaporan()">
+            <option value="single">📄 Satu Bulan</option>
+            <option value="range">📊 Rentang Multi-Bulan</option>
+          </select>
+        </div>
+      </div>
+      <div id="modeSingle">
+        <div class="form-row">
+          <div class="field"><label>📅 Bulan</label><input type="month" id="laporanBulan"></div>
+        </div>
+      </div>
+      <div id="modeRange" style="display:none;">
+        <div class="form-row">
+          <div class="field"><label>📅 Dari</label><input type="month" id="laporanDari"></div>
+          <div class="field"><label>📅 Sampai</label><input type="month" id="laporanSampai"></div>
+        </div>
+      </div>
+      <div class="actions laporan-actions">
+        <button class="btn btn-primary" onclick="generateLaporan()">📊 Generate</button>
+        <button class="btn btn-ghost" onclick="copyLaporan()">📋 Copy</button>
+        <button class="btn btn-wa" onclick="shareLaporan()">📱 Share WA</button>
+        <button class="btn btn-ghost" onclick="printLaporan()">🖨️ Print</button>
+      </div>
+      <div class="laporan-preview" id="laporanPreview">
+        <div class="empty">Pilih mode & bulan, klik Generate.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETELAN -->
+  <div id="pageSetelan" style="display:none;">
+    <div class="panel">
+      <div class="panel-title"><span class="ico">⚙️</span> Nominal Iuran Flat</div>
+      <div class="form-row">
+        <div class="field"><label>💵 Iuran Flat (Rp)</label><input type="number" id="setIuran" placeholder="2000" min="0"></div>
+        <div class="field" style="justify-content:flex-end;">
+          <button class="btn btn-primary" onclick="simpanIuran()" style="width:100%;">💾 Simpan</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><span class="ico">🎯</span> Target Cicilan Custom Bola</div>
+      <div class="form-row">
+        <div class="field"><label>💵 Target per Pemain (Rp)</label><input type="number" id="setTargetCustom" placeholder="150000" min="0"></div>
+        <div class="field" style="justify-content:flex-end;">
+          <button class="btn btn-primary" onclick="simpanTargetCustom()" style="width:100%;">✅ Terapkan</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><span class="ico">➕</span> Daftar Pemain</div>
+      <div class="inline-form" style="margin-bottom:16px;">
+        <input type="text" id="namaPemainBaru" placeholder="Nama pemain baru...">
+        <button class="btn btn-primary" onclick="tambahPemain()">➕ Tambah</button>
+      </div>
+      <div id="listPemain"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><span class="ico">💾</span> Backup & Restore</div>
+      <div class="info-box green">
+        🔒 Data tersimpan di <strong>database server</strong> — tidak akan hilang walau ganti HP atau clear browser.
+        Tetap disarankan backup rutin untuk keamanan ekstra.
+      </div>
+      <div class="stat-info-grid" id="statInfoGrid"></div>
+      <div class="backup-zone">
+        <div class="backup-card">
+          <div class="b-icon">📥</div>
+          <div class="b-title">Download Backup</div>
+          <div class="b-desc">Simpan semua data ke file JSON. Simpan di Google Drive atau kirim ke WA diri sendiri.</div>
+          <button class="btn btn-primary" onclick="downloadBackup()" style="width:100%;">💾 Download Backup</button>
+        </div>
+        <div class="backup-card">
+          <div class="b-icon">📤</div>
+          <div class="b-title">Restore dari File</div>
+          <div class="b-desc">Upload file backup JSON. <strong>Data saat ini akan diganti.</strong></div>
+          <input type="file" id="restoreFile" accept=".json" style="display:none;" onchange="restoreBackup(event)">
+          <button class="btn btn-blue" onclick="document.getElementById('restoreFile').click()" style="width:100%;">📂 Pilih File</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="border-color: rgba(239,68,68,0.3);">
+      <div class="panel-title"><span class="ico" style="background:rgba(239,68,68,0.15);">⚠️</span> Zona Bahaya</div>
+      <div class="info-box red">⚠️ Tindakan tidak bisa dibatalkan. Backup dulu!</div>
+      <div class="actions">
+        <button class="btn btn-danger" onclick="resetTransaksi()">🗑️ Hapus Semua Transaksi</button>
+        <button class="btn btn-danger" onclick="resetPemain()">👥 Hapus Semua Pemain</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modalPemain">
+  <div class="modal-content">
+    <h3 id="modalTitle">Detail Pemain</h3>
+    <div id="modalBody"></div>
+    <div style="margin-top:20px;text-align:right;">
+      <button class="btn btn-ghost" onclick="tutupModal()">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js?v=5"></script>
+</body>
+</html>
