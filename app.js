@@ -16,6 +16,10 @@ function rupiah(n) {
 function inisial(nama) {
   return (nama || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
 }
+function urutkanPemain(pemain) {
+  const collator = new Intl.Collator('id', { sensitivity: 'base', numeric: true });
+  return [...pemain].sort((a, b) => collator.compare(a.nama, b.nama));
+}
 function tglSingkat(s) {
   return new Date(s).toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
 }
@@ -152,13 +156,13 @@ function renderDaftarPemainSelect() {
   const sel = document.getElementById('pemainSelect');
   const cur = sel.value;
   sel.innerHTML = '<option value="">-- Pilih Pemain --</option>' +
-    DATA.pemain.map(p => `<option value="${p.id}">${p.nama}</option>`).join('');
+    urutkanPemain(DATA.pemain).map(p => `<option value="${p.id}">${p.nama}</option>`).join('');
   sel.value = cur;
 
   const fp = document.getElementById('filterPemain');
   const curFp = fp.value;
   fp.innerHTML = '<option value="">👥 Semua Pemain</option>' +
-    DATA.pemain.map(p => `<option value="${p.id}">${p.nama}</option>`).join('');
+    urutkanPemain(DATA.pemain).map(p => `<option value="${p.id}">${p.nama}</option>`).join('');
   fp.value = curFp;
 }
 
@@ -206,7 +210,7 @@ function renderPemain() {
   const prev = selectedPemainId || picker.value;
 
   picker.innerHTML = '<option value="">-- Pilih pemain --</option>' +
-    DATA.statistikPemain.map(p =>
+    urutkanPemain(DATA.statistikPemain).map(p =>
       `<option value="${p.id}">${p.nama}${p.lunas ? ' ✅ Lunas' : ''}</option>`
     ).join('');
 
@@ -261,7 +265,7 @@ function renderPengaturan() {
   if (DATA.pemain.length === 0) {
     list.innerHTML = '<div class="empty">Belum ada pemain.</div>';
   } else {
-    list.innerHTML = DATA.pemain.map(p => {
+    list.innerHTML = urutkanPemain(DATA.pemain).map(p => {
       const stat = DATA.statistikPemain.find(s => s.id === p.id) || {};
       return `
         <div class="list-item">
