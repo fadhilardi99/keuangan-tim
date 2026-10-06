@@ -106,6 +106,34 @@ app.get('/api/pemain', safe((req, res) => {
   res.json(pemain);
 }));
 
+app.post('/api/pemain/bulk', safe((req, res) => {
+  if (!Array.isArray(req.body?.nama) || !req.body.nama.every(nama => typeof nama === 'string')) {
+    return res.status(400).json({ error: 'Daftar nama pemain tidak valid' });
+  }
+
+  const semuaNama = req.body.nama.map(nama => nama.trim()).filter(Boolean);
+  const namaPemain = [...new Set(semuaNama)];
+  if (!namaPemain.length) return res.status(400).json({ error: 'Minimal satu nama wajib diisi' });
+
+  const insert = db.prepare('INSERT OR IGNORE INTO pemain (nama) VALUES (?)');
+  const select = db.prepare('SELECT * FROM pemain WHERE id = ?');
+  const pemainBaru = [];
+  let duplikat = semuaNama.length - namaPemain.length;
+
+  runTx(() => {
+    namaPemain.forEach(nama => {
+      const result = insert.run(nama);
+      if (result.changes) {
+        pemainBaru.push(select.get(result.lastInsertRowid));
+      } else {
+        duplikat++;
+      }
+    });
+  });
+
+  res.json({ ditambahkan: pemainBaru.length, duplikat, pemain: pemainBaru });
+}));
+
 app.post('/api/pemain', safe((req, res) => {
   const nama = (req.body?.nama || '').trim();
   if (!nama) return res.status(400).json({ error: 'Nama wajib diisi' });

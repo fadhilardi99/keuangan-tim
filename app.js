@@ -500,12 +500,16 @@ async function hapusSemuaTransaksi() {
 
 // ================== PEMAIN ==================
 async function tambahPemain() {
-  const nama = document.getElementById('namaPemainBaru').value.trim();
-  if (!nama) { toast('Masukkan nama!', true); return; }
+  const input = document.getElementById('namaPemainBaru');
+  const nama = input.value.split(/\r?\n/).map(baris => baris.trim()).filter(Boolean);
+  if (!nama.length) { toast('Masukkan minimal satu nama pemain!', true); return; }
   try {
-    await api('/api/pemain', { method: 'POST', body: JSON.stringify({ nama }) });
-    document.getElementById('namaPemainBaru').value = '';
-    toast(`✅ "${nama}" ditambahkan`);
+    const hasil = await api('/api/pemain/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ nama })
+    });
+    input.value = '';
+    toast(`✅ ${hasil.ditambahkan} pemain ditambahkan${hasil.duplikat ? `, ${hasil.duplikat} nama sudah terdaftar` : ''}`);
     await loadAll();
   } catch (err) {
     toast('Gagal: ' + err.message, true);

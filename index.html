@@ -279,9 +279,10 @@
 
     <div class="panel">
       <div class="panel-title"><span class="ico">➕</span> Daftar Pemain</div>
-      <div class="inline-form" style="margin-bottom:16px;">
-        <input type="text" id="namaPemainBaru" placeholder="Nama pemain baru...">
-        <button class="btn btn-primary" onclick="tambahPemain()">➕ Tambah</button>
+      <div style="margin-bottom:16px;">
+        <textarea id="namaPemainBaru" rows="5" placeholder="Masukkan nama pemain, satu nama per baris..."></textarea>
+        <p class="picker-hint">Bisa tempel beberapa nama sekaligus, satu nama per baris.</p>
+        <button class="btn btn-primary" onclick="tambahPemain()">➕ Tambah Pemain</button>
       </div>
       <div id="listPemain"></div>
     </div>
