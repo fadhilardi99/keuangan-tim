@@ -70,13 +70,8 @@ async function loadAll() {
     DATA.baju = baju;
     DATA.pengaturan = {
       iuran: parseInt(pengaturan.iuran || 2000),
-      targetCustom: parseInt(pengaturan.targetCustom || 150000),
-      namaBaju: JSON.parse(pengaturan.namaBaju || '[]')
+      targetCustom: parseInt(pengaturan.targetCustom || 150000)
     };
-    if (!Array.isArray(DATA.pengaturan.namaBaju) ||
-        !DATA.pengaturan.namaBaju.every(nama => typeof nama === 'string')) {
-      throw new Error('Daftar nama baju di pengaturan tidak valid');
-    }
     DATA.statistik = statistik;
     DATA.statistikPemain = statistikPemain;
 
@@ -183,15 +178,8 @@ function renderDaftarPemainSelect() {
 
   const bajuPemain = document.getElementById('bajuPemain');
   const curBajuPemain = bajuPemain.value;
-  const pemainBaju = urutkanPemain(DATA.pemain);
-  const namaPemainTerdaftar = new Set(pemainBaju.map(p => p.nama.toLocaleLowerCase('id')));
-  const namaBajuTambahan = (DATA.pengaturan.namaBaju || [])
-    .filter(nama => !namaPemainTerdaftar.has(nama.toLocaleLowerCase('id')));
   bajuPemain.innerHTML = '<option value="">-- Pilih Pemain --</option>' +
-    pemainBaju.map(p => `<option value="${p.id}">${escapeHtml(p.nama)}</option>`).join('') +
-    namaBajuTambahan.map(nama =>
-      `<option value="nama:${encodeURIComponent(nama)}">${escapeHtml(nama)}</option>`
-    ).join('');
+    urutkanPemain(DATA.pemain).map(p => `<option value="${p.id}">${escapeHtml(p.nama)}</option>`).join('');
   bajuPemain.value = curBajuPemain;
 }
 
@@ -206,7 +194,7 @@ function renderBaju() {
       <td data-label="Nama di Baju">${escapeHtml(item.nama_baju)}</td>
       <td data-label="Nomor">${escapeHtml(item.nomor_punggung)}</td>
       <td data-label="Ukuran">${escapeHtml(item.ukuran)}</td>
-      <td data-label="Status">${item.lunas === null ? '—' : `<span class="badge ${item.lunas ? 'status-lunas' : 'status-belum'}">${item.lunas ? '✅ Lunas' : '⏳ Belum lunas'}</span>`}</td>
+      <td data-label="Status"><span class="badge ${item.lunas ? 'status-lunas' : 'status-belum'}">${item.lunas ? '✅ Lunas' : '⏳ Belum lunas'}</span></td>
       <td data-label=""><button class="del-btn" onclick="hapusDataBaju(${item.id})">Hapus</button></td>
     </tr>
   `).join('');
@@ -306,20 +294,6 @@ function renderPemainCard() {
 function renderPengaturan() {
   document.getElementById('setIuran').value = DATA.pengaturan.iuran;
   document.getElementById('setTargetCustom').value = DATA.pengaturan.targetCustom;
-  const daftarNamaBaju = DATA.pengaturan.namaBaju || [];
-  document.getElementById('daftarNamaBaju').innerHTML = daftarNamaBaju
-    .map(nama => `<option value="${escapeHtml(nama)}">`).join('');
-  const listNamaBaju = document.getElementById('listNamaBaju');
-  if (daftarNamaBaju.length === 0) {
-    listNamaBaju.innerHTML = '<div class="empty">Belum ada nama baju.</div>';
-  } else {
-    listNamaBaju.innerHTML = daftarNamaBaju.map((nama, index) => `
-      <div class="list-item">
-        <div class="name">${escapeHtml(nama)}</div>
-        <button class="del-btn" onclick="hapusNamaBaju(${index})">Hapus</button>
-      </div>
-    `).join('');
-  }
 
   const list = document.getElementById('listPemain');
   if (DATA.pemain.length === 0) {
@@ -530,16 +504,11 @@ function resetFormPemain() {
 }
 
 async function simpanDataBaju() {
-  const pemainPilihan = document.getElementById('bajuPemain').value;
-  const namaTambahan = pemainPilihan.startsWith('nama:')
-    ? decodeURIComponent(pemainPilihan.slice(5))
-    : '';
-  const pemainId = namaTambahan ? null : Number(pemainPilihan);
-  const pemainNama = namaTambahan || DATA.pemain.find(p => p.id === pemainId)?.nama || '';
+  const pemainId = document.getElementById('bajuPemain').value;
   const namaBaju = document.getElementById('bajuNama').value.trim();
   const nomor = document.getElementById('bajuNomor').value.trim();
   const ukuran = document.getElementById('bajuUkuran').value;
-  if (!pemainPilihan || !pemainNama || !namaBaju || !nomor || !ukuran) {
+  if (!pemainId || !namaBaju || !nomor || !ukuran) {
     toast('⚠️ Lengkapi semua data baju!', true);
     return;
   }
@@ -548,8 +517,7 @@ async function simpanDataBaju() {
     await api('/api/baju', {
       method: 'POST',
       body: JSON.stringify({
-        pemain_id: pemainId,
-        pemain_nama: pemainNama,
+        pemain_id: Number(pemainId),
         nama_baju: namaBaju,
         nomor_punggung: nomor,
         ukuran
@@ -642,54 +610,6 @@ async function tambahPemain() {
     await loadAll();
   } catch (err) {
     toast('Gagal: ' + err.message, true);
-  }
-}
-
-async function tambahNamaBaju() {
-  const input = document.getElementById('namaBajuBaru');
-  const namaBaru = input.value.split(/\r?\n/).map(baris => baris.trim()).filter(Boolean);
-  if (!namaBaru.length) { toast('Masukkan minimal satu nama baju!', true); return; }
-
-  const namaBaju = [...(DATA.pengaturan.namaBaju || [])];
-  const namaTersimpan = new Set(namaBaju.map(nama => nama.toLocaleLowerCase('id')));
-  let duplikat = 0;
-  namaBaru.forEach(nama => {
-    const kunci = nama.toLocaleLowerCase('id');
-    if (namaTersimpan.has(kunci)) {
-      duplikat++;
-      return;
-    }
-    namaTersimpan.add(kunci);
-    namaBaju.push(nama);
-  });
-
-  try {
-    await api('/api/pengaturan', {
-      method: 'PUT',
-      body: JSON.stringify({ namaBaju: JSON.stringify(namaBaju) })
-    });
-    input.value = '';
-    toast(`✅ ${namaBaju.length - (DATA.pengaturan.namaBaju || []).length} nama baju ditambahkan${duplikat ? `, ${duplikat} nama sudah terdaftar` : ''}`);
-    await loadAll();
-  } catch (err) {
-    toast('Gagal menyimpan daftar nama baju: ' + err.message, true);
-  }
-}
-
-async function hapusNamaBaju(index) {
-  const namaBaju = [...(DATA.pengaturan.namaBaju || [])];
-  if (!Number.isInteger(index) || index < 0 || index >= namaBaju.length) return;
-  if (!confirm(`Hapus "${namaBaju[index]}" dari daftar nama baju?`)) return;
-  namaBaju.splice(index, 1);
-  try {
-    await api('/api/pengaturan', {
-      method: 'PUT',
-      body: JSON.stringify({ namaBaju: JSON.stringify(namaBaju) })
-    });
-    toast('✅ Nama baju dihapus dari daftar');
-    await loadAll();
-  } catch (err) {
-    toast('Gagal menghapus nama baju: ' + err.message, true);
   }
 }
 

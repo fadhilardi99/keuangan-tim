@@ -210,7 +210,7 @@
         <div class="field"><label>👤 Pemain</label>
           <select id="bajuPemain"><option value="">-- Pilih Pemain --</option></select>
         </div>
-        <div class="field"><label>📝 Nama di Baju</label><input type="text" id="bajuNama" list="daftarNamaBaju" maxlength="80" placeholder="Nama yang dicetak"><datalist id="daftarNamaBaju"></datalist></div>
+        <div class="field"><label>📝 Nama di Baju</label><input type="text" id="bajuNama" maxlength="80" placeholder="Nama yang dicetak"></div>
         <div class="field"><label>🔢 Nomor Punggung</label><input type="text" id="bajuNomor" maxlength="10" placeholder="Nomor"></div>
         <div class="field"><label>📏 Ukuran Baju</label>
           <select id="bajuUkuran">
@@ -334,16 +334,6 @@
     </div>
 
     <div class="panel">
-      <div class="panel-title"><span class="ico">👕</span> Daftar Nama Baju</div>
-      <div style="margin-bottom:16px;">
-        <textarea id="namaBajuBaru" rows="5" placeholder="Masukkan nama yang akan dicetak, satu nama per baris..."></textarea>
-        <p class="picker-hint">Bisa tempel beberapa nama sekaligus, satu nama per baris.</p>
-        <button class="btn btn-primary" onclick="tambahNamaBaju()">➕ Tambah Nama Baju</button>
-      </div>
-      <div id="listNamaBaju"></div>
-    </div>
-
-    <div class="panel">
       <div class="panel-title"><span class="ico">💾</span> Backup & Restore</div>
       <div class="info-box green">
         🔒 Data tersimpan di <strong>database server</strong> — tidak akan hilang walau ganti HP atau clear browser.
@@ -390,6 +380,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
