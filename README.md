@@ -2,6 +2,13 @@
 
 Sistem keuangan tim dengan database SQLite bawaan Node.js.
 
+## Fitur
+
+- Pembayaran pemain dapat dialokasikan ke iuran saja, Custom Bola saja, atau keduanya.
+- Riwayat transaksi dapat difilter menurut tanggal, jenis, dan pemain.
+- Data baju bola mencatat pemain, nama cetak, nomor punggung, dan ukuran. Status lunas otomatis mengikuti pembayaran Custom Bola dibanding target per pemain.
+- Data baju bola termasuk dalam file backup dan restore.
+
 ## Cara menjalankan di komputer
 
 1. Install [Node.js 22+](https://nodejs.org) (sudah termasuk npm).

@@ -3,6 +3,7 @@ const API = ''; // Kosong = same origin
 let DATA = {
   transaksi: [],
   pemain: [],
+  baju: [],
   pengaturan: { iuran: 2000, targetCustom: 150000 },
   statistik: {},
   statistikPemain: []
@@ -12,6 +13,11 @@ let selectedPemainId = '';
 // ================== UTIL ==================
 function rupiah(n) {
   return 'Rp ' + Number(Math.round(n || 0)).toLocaleString('id-ID');
+}
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
 }
 function inisial(nama) {
   return (nama || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
@@ -50,16 +56,18 @@ async function api(url, options = {}) {
 // ================== LOAD DATA ==================
 async function loadAll() {
   try {
-    const [transaksi, pemain, pengaturan, statistik, statistikPemain] = await Promise.all([
+    const [transaksi, pemain, pengaturan, statistik, statistikPemain, baju] = await Promise.all([
       api('/api/transaksi'),
       api('/api/pemain'),
       api('/api/pengaturan'),
       api('/api/statistik'),
-      api('/api/statistik-pemain')
+      api('/api/statistik-pemain'),
+      api('/api/baju')
     ]);
 
     DATA.transaksi = transaksi;
     DATA.pemain = pemain;
+    DATA.baju = baju;
     DATA.pengaturan = {
       iuran: parseInt(pengaturan.iuran || 2000),
       targetCustom: parseInt(pengaturan.targetCustom || 150000)
@@ -89,6 +97,7 @@ function renderAll() {
   renderTabel();
   renderPemain();
   renderDaftarPemainSelect();
+  renderBaju();
   renderPengaturan();
   renderStatInfo();
 }
@@ -111,11 +120,13 @@ function renderHeaderBadge() {
 function renderTabel() {
   const filterJenis = document.getElementById('filterJenis').value;
   const filterPemain = document.getElementById('filterPemain').value;
+  const filterTanggal = document.getElementById('filterTanggal').value;
   const search = (document.getElementById('searchBox').value || '').toLowerCase();
 
   let list = [...DATA.transaksi];
   if (filterJenis) list = list.filter(t => t.jenis === filterJenis);
   if (filterPemain) list = list.filter(t => String(t.pemain_id) === String(filterPemain));
+  if (filterTanggal) list = list.filter(t => t.tanggal === filterTanggal);
   if (search) list = list.filter(t =>
     (t.keterangan || '').toLowerCase().includes(search) ||
     (t.pemain_nama || '').toLowerCase().includes(search)
@@ -164,6 +175,29 @@ function renderDaftarPemainSelect() {
   fp.innerHTML = '<option value="">👥 Semua Pemain</option>' +
     urutkanPemain(DATA.pemain).map(p => `<option value="${p.id}">${p.nama}</option>`).join('');
   fp.value = curFp;
+
+  const bajuPemain = document.getElementById('bajuPemain');
+  const curBajuPemain = bajuPemain.value;
+  bajuPemain.innerHTML = '<option value="">-- Pilih Pemain --</option>' +
+    urutkanPemain(DATA.pemain).map(p => `<option value="${p.id}">${escapeHtml(p.nama)}</option>`).join('');
+  bajuPemain.value = curBajuPemain;
+}
+
+function renderBaju() {
+  const tbody = document.getElementById('tabelBajuBody');
+  const empty = document.getElementById('emptyBaju');
+  if (!tbody || !empty) return;
+  empty.style.display = DATA.baju.length ? 'none' : 'block';
+  tbody.innerHTML = DATA.baju.map(item => `
+    <tr>
+      <td data-label="Pemain">${escapeHtml(item.pemain_nama)}</td>
+      <td data-label="Nama di Baju">${escapeHtml(item.nama_baju)}</td>
+      <td data-label="Nomor">${escapeHtml(item.nomor_punggung)}</td>
+      <td data-label="Ukuran">${escapeHtml(item.ukuran)}</td>
+      <td data-label="Status"><span class="badge ${item.lunas ? 'status-lunas' : 'status-belum'}">${item.lunas ? '✅ Lunas' : '⏳ Belum lunas'}</span></td>
+      <td data-label=""><button class="del-btn" onclick="hapusDataBaju(${item.id})">Hapus</button></td>
+    </tr>
+  `).join('');
 }
 
 function playerCardHtml(p) {
@@ -302,12 +336,13 @@ document.querySelectorAll('.nav-tabs .tab-btn').forEach(btn => {
     document.querySelectorAll('.nav-tabs .tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const page = btn.dataset.page;
-    ['pageTransaksi','pagePemain','pageRekap','pageTagih','pageLaporan','pageSetelan'].forEach(id => {
+    ['pageTransaksi','pagePemain','pageBaju','pageRekap','pageTagih','pageLaporan','pageSetelan'].forEach(id => {
       document.getElementById(id).style.display = id === page ? 'block' : 'none';
     });
     document.body.classList.toggle('tab-kas', page === 'pageTransaksi');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (page === 'pagePemain') renderPemain();
+    if (page === 'pageBaju') renderBaju();
     if (page === 'pageRekap') { renderChart(); renderRekapLatihan(); }
     if (page === 'pageTagih') renderWaTargets();
     if (page === 'pageSetelan') { renderPengaturan(); renderStatInfo(); }
@@ -327,6 +362,7 @@ function lunaskan(btn) {
   if (!pemainId) { toast('⚠️ Pilih pemain dulu!', true); return; }
   const stat = DATA.statistikPemain.find(s => s.id == pemainId);
   if (!stat || stat.lunas) { toast('✅ Pemain ini sudah LUNAS!', true); return; }
+  document.getElementById('jenisPembayaran').value = 'keduanya';
   const nominal = stat.sisa + DATA.pengaturan.iuran;
   document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -334,11 +370,17 @@ function lunaskan(btn) {
   updatePreview();
 }
 
-function hitungBreakdown(jumlah, statPemain) {
+function hitungBreakdown(jumlah, statPemain, alokasi = 'keduanya') {
   const iuranFlat = DATA.pengaturan.iuran;
   const target = DATA.pengaturan.targetCustom;
   const sisaCustom = statPemain ? Math.max(0, target - statPemain.total_custom) : 0;
 
+  if (alokasi === 'iuran') {
+    return { iuran: jumlah, custom: 0, lunasSebelumnya: Boolean(statPemain?.lunas) };
+  }
+  if (alokasi === 'custom') {
+    return { iuran: 0, custom: jumlah, lunasSebelumnya: Boolean(statPemain?.lunas) };
+  }
   if (sisaCustom <= 0) {
     return { iuran: jumlah, custom: 0, lunasSebelumnya: true };
   }
@@ -364,13 +406,14 @@ function updatePreview() {
   const val = parseFloat(document.getElementById('jumlahBayar').value) || 0;
   const box = document.getElementById('previewBox');
   const pemainId = document.getElementById('pemainSelect').value;
+  const alokasi = document.getElementById('jenisPembayaran').value;
   const noticeEl = document.getElementById('prevNotice');
   noticeEl.innerHTML = '';
 
   if (val <= 0) { box.classList.remove('show'); return; }
 
   const stat = pemainId ? DATA.statistikPemain.find(s => s.id == pemainId) : null;
-  const b = hitungBreakdown(val, stat);
+  const b = hitungBreakdown(val, stat, alokasi);
 
   document.getElementById('prevIuran').textContent = rupiah(b.iuran);
   document.getElementById('prevCustom').textContent = rupiah(b.custom);
@@ -379,7 +422,13 @@ function updatePreview() {
 
   const sisaEl = document.getElementById('prevSisa');
   if (stat) {
-    if (b.lunasSebelumnya) {
+    if (alokasi === 'iuran') {
+      sisaEl.innerHTML = 'Pembayaran ini seluruhnya masuk ke iuran.';
+    } else if (alokasi === 'custom') {
+      const sisaBaru = Math.max(0, stat.sisa - b.custom);
+      if (sisaBaru <= 0) sisaEl.innerHTML = `🎉 <strong style="color:var(--accent);">LUNAS setelah pembayaran ini!</strong>`;
+      else sisaEl.innerHTML = `💰 Pembayaran seluruhnya masuk ke custom bola. Sisa: <strong>${rupiah(sisaBaru)}</strong>`;
+    } else if (b.lunasSebelumnya) {
       sisaEl.innerHTML = `✅ Pemain sudah <strong style="color:var(--accent);">LUNAS</strong> — seluruh pembayaran masuk ke iuran.`;
     } else if (b.custom === 0 && b.iuran === val) {
       sisaEl.innerHTML = `ℹ️ Nominal ≤ Rp${DATA.pengaturan.iuran.toLocaleString('id-ID')} → hanya masuk iuran.`;
@@ -389,7 +438,7 @@ function updatePreview() {
       else sisaEl.innerHTML = `💰 Sisa cicilan custom: <strong>${rupiah(sisaBaru)}</strong>`;
     }
     const kelebihan = val - DATA.pengaturan.iuran - b.custom;
-    if (!b.lunasSebelumnya && kelebihan > 0) {
+    if (alokasi === 'keduanya' && !b.lunasSebelumnya && kelebihan > 0) {
       noticeEl.innerHTML = `<div class="notice">⚠️ Kelebihan ${rupiah(kelebihan)} dialihkan ke iuran</div>`;
     }
   } else {
@@ -398,6 +447,7 @@ function updatePreview() {
 }
 
 document.getElementById('pemainSelect').addEventListener('change', updatePreview);
+document.getElementById('jenisPembayaran').addEventListener('change', updatePreview);
 
 // ================== SIMPAN ==================
 async function simpanPembayaranPemain() {
@@ -406,6 +456,7 @@ async function simpanPembayaranPemain() {
   const pemainId = document.getElementById('pemainSelect').value;
   const jumlah = parseFloat(document.getElementById('jumlahBayar').value);
   const ket = document.getElementById('keteranganBayar').value.trim();
+  const alokasi = document.getElementById('jenisPembayaran').value;
 
   if (!tanggal || !pemainId || !jumlah || jumlah <= 0) {
     toast('⚠️ Lengkapi data!', true); return;
@@ -413,7 +464,7 @@ async function simpanPembayaranPemain() {
 
   const pemain = DATA.pemain.find(p => p.id == pemainId);
   const stat = DATA.statistikPemain.find(s => s.id == pemainId);
-  const b = hitungBreakdown(jumlah, stat);
+  const b = hitungBreakdown(jumlah, stat, alokasi);
 
   btn.disabled = true;
   btn.innerHTML = '<span class="loading"></span> Menyimpan...';
@@ -447,8 +498,50 @@ function resetFormPemain() {
   document.getElementById('keteranganBayar').value = '';
   document.getElementById('tanggal').valueAsDate = new Date();
   document.getElementById('pemainSelect').value = '';
+  document.getElementById('jenisPembayaran').value = 'keduanya';
   document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('previewBox').classList.remove('show');
+}
+
+async function simpanDataBaju() {
+  const pemainId = document.getElementById('bajuPemain').value;
+  const namaBaju = document.getElementById('bajuNama').value.trim();
+  const nomor = document.getElementById('bajuNomor').value.trim();
+  const ukuran = document.getElementById('bajuUkuran').value;
+  if (!pemainId || !namaBaju || !nomor || !ukuran) {
+    toast('⚠️ Lengkapi semua data baju!', true);
+    return;
+  }
+
+  try {
+    await api('/api/baju', {
+      method: 'POST',
+      body: JSON.stringify({
+        pemain_id: Number(pemainId),
+        nama_baju: namaBaju,
+        nomor_punggung: nomor,
+        ukuran
+      })
+    });
+    document.getElementById('bajuNama').value = '';
+    document.getElementById('bajuNomor').value = '';
+    document.getElementById('bajuUkuran').value = '';
+    toast('✅ Data baju disimpan');
+    await loadAll();
+  } catch (err) {
+    toast('Gagal simpan data baju: ' + err.message, true);
+  }
+}
+
+async function hapusDataBaju(id) {
+  if (!confirm('Hapus data baju ini?')) return;
+  try {
+    await api('/api/baju/' + id, { method: 'DELETE' });
+    toast('✅ Data baju dihapus');
+    await loadAll();
+  } catch (err) {
+    toast('Gagal menghapus data baju: ' + err.message, true);
+  }
 }
 
 async function simpanTransaksiUmum() {

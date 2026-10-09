@@ -629,6 +629,8 @@ tbody tr:last-child td { border-bottom: none; }
 .badge.custom { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
 .badge.masuk { background: rgba(34, 214, 122, 0.15); color: var(--accent); }
 .badge.keluar { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.badge.status-lunas { background: rgba(34, 214, 122, 0.15); color: var(--accent); }
+.badge.status-belum { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
 
 .amount-in { color: var(--accent); font-weight: 800; }
 .amount-out { color: var(--red); font-weight: 800; }

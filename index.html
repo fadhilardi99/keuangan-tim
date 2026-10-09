@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body class="tab-kas">
 <div class="container">
@@ -34,6 +34,7 @@
     <div class="nav-tabs">
       <button class="tab-btn active" data-page="pageTransaksi"><span class="tab-ico">💳</span><span class="tab-lbl">Kas</span></button>
       <button class="tab-btn" data-page="pagePemain"><span class="tab-ico">👥</span><span class="tab-lbl">Pemain</span></button>
+      <button class="tab-btn" data-page="pageBaju"><span class="tab-ico">👕</span><span class="tab-lbl">Baju Bola</span></button>
       <button class="tab-btn" data-page="pageRekap"><span class="tab-ico">📊</span><span class="tab-lbl">Rekap</span></button>
       <button class="tab-btn" data-page="pageTagih"><span class="tab-ico">📱</span><span class="tab-lbl">Tagih</span></button>
       <button class="tab-btn" data-page="pageLaporan"><span class="tab-ico">📄</span><span class="tab-lbl">Laporan</span></button>
@@ -74,13 +75,19 @@
     <div class="panel">
       <div class="panel-title"><span class="ico">💳</span> Pembayaran Pemain</div>
       <div class="info-box green">
-        💡 <strong>Aturan otomatis:</strong> Rp<span id="infoIuran">2000</span> masuk iuran, sisanya ke cicilan custom.
-        Kalau sudah <strong>lunas</strong> → semua masuk iuran.
+        💡 Pilih alokasi pembayaran. Opsi gabungan membagi pembayaran ke iuran Rp<span id="infoIuran">2000</span> dan cicilan custom bola.
       </div>
       <div class="form-row">
         <div class="field"><label>📅 Tanggal</label><input type="date" id="tanggal"></div>
         <div class="field"><label>👤 Pemain</label>
           <select id="pemainSelect"><option value="">-- Pilih Pemain --</option></select>
+        </div>
+        <div class="field"><label>💸 Alokasi Pembayaran</label>
+          <select id="jenisPembayaran">
+            <option value="keduanya">🏦 + ⚽ Iuran dan Custom Bola</option>
+            <option value="iuran">🏦 Iuran saja</option>
+            <option value="custom">⚽ Custom Bola saja</option>
+          </select>
         </div>
       </div>
       <label class="field-label">Nominal Cepat</label>
@@ -152,6 +159,7 @@
         <select id="filterPemain" onchange="renderTabel()">
           <option value="">👥 Semua Pemain</option>
         </select>
+        <input type="date" id="filterTanggal" aria-label="Filter tanggal" onchange="renderTabel()">
         <input type="text" id="searchBox" placeholder="🔍 Cari..." oninput="renderTabel()">
       </div>
       <div class="table-wrap">
@@ -190,6 +198,44 @@
       </div>
       <div class="player-grid player-grid-single" id="playerGrid"></div>
       <div id="emptyPlayer" class="empty">📭 Belum ada pemain.</div>
+    </div>
+  </div>
+
+  <!-- DATA BAJU BOLA -->
+  <div id="pageBaju" style="display:none;">
+    <div class="panel">
+      <div class="panel-title"><span class="ico">👕</span> Input Data Baju Bola</div>
+      <div class="info-box green">Status lunas mengikuti pembayaran Custom Bola pemain dan target Custom Bola di Setelan.</div>
+      <div class="form-row">
+        <div class="field"><label>👤 Pemain</label>
+          <select id="bajuPemain"><option value="">-- Pilih Pemain --</option></select>
+        </div>
+        <div class="field"><label>📝 Nama di Baju</label><input type="text" id="bajuNama" maxlength="80" placeholder="Nama yang dicetak"></div>
+        <div class="field"><label>🔢 Nomor Punggung</label><input type="text" id="bajuNomor" maxlength="10" placeholder="Nomor"></div>
+        <div class="field"><label>📏 Ukuran Baju</label>
+          <select id="bajuUkuran">
+            <option value="">-- Pilih Ukuran --</option>
+            <option value="XS">XS</option>
+            <option value="S">S</option>
+            <option value="M">M</option>
+            <option value="L">L</option>
+            <option value="XL">XL</option>
+            <option value="XXL">XXL</option>
+            <option value="XXXL">XXXL</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="simpanDataBaju()">💾 Simpan Data Baju</button>
+    </div>
+    <div class="panel">
+      <div class="panel-title"><span class="ico">📋</span> Laporan Data Baju Bola</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Pemain</th><th>Nama di Baju</th><th>Nomor</th><th>Ukuran</th><th>Status</th><th></th></tr></thead>
+          <tbody id="tabelBajuBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyBaju" class="empty" style="display:none;">📭 Belum ada data baju bola.</div>
     </div>
   </div>
 
@@ -334,6 +380,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
