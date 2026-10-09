@@ -8,6 +8,21 @@ Sistem keuangan tim dengan database SQLite bawaan Node.js.
 - Riwayat transaksi dapat difilter menurut tanggal, jenis, dan pemain.
 - Data baju bola mencatat pemain, nama cetak, nomor punggung, dan ukuran. Status lunas otomatis mengikuti pembayaran Custom Bola dibanding target per pemain.
 - Data baju bola termasuk dalam file backup dan restore.
+- Login admin dapat mengelola semua data. Login user dapat melihat seluruh data dan hanya menambah, mengubah, atau menghapus data baju bola.
+
+## Login
+
+Saat pertama kali menjalankan aplikasi, atur environment variables `AUTH_ADMIN_PASSWORD` dan `AUTH_USER_PASSWORD`. Keduanya harus minimal 8 karakter. Akun tetap memakai username `admin` dan `user`; password disimpan sebagai hash bersalt di database SQLite dan tidak perlu dimasukkan lagi setelah akun dibuat.
+
+Di PowerShell, isi keduanya sebelum menjalankan server pertama kali:
+
+```powershell
+$env:AUTH_ADMIN_PASSWORD = Read-Host "Password akun admin"
+$env:AUTH_USER_PASSWORD = Read-Host "Password akun user"
+npm start
+```
+
+Jangan masukkan password ke source code atau commit ke Git. Untuk hosting, atur kedua environment variables tersebut di pengaturan layanan sebelum deploy pertama. Gunakan HTTPS untuk aplikasi yang dapat diakses melalui internet.
 
 ## Cara menjalankan di komputer
 
@@ -20,6 +35,8 @@ npm start
 ```
 
 3. Buka browser: [http://localhost:3000](http://localhost:3000)
+
+Jika belum ada akun, jalankan server dengan kedua environment variables tersebut tersedia di terminal. Setelah akun dibuat, password hash tersimpan di `database.db`; jangan menghapus atau mengganti database jika ingin mempertahankan akun.
 
 Di HP yang **satu Wi-Fi**, pakai alamat jaringan yang muncul di terminal (contoh `http://192.168.x.x:3000`).
 

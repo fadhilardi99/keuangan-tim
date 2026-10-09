@@ -11,10 +11,26 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body class="tab-kas">
-<div class="container">
+<div class="login-screen" id="loginScreen">
+  <form class="panel login-panel" id="loginForm">
+    <div class="panel-title"><span class="ico">🔐</span> Login Keuangan Tim</div>
+    <p class="picker-hint">Masuk dengan akun admin atau user untuk melanjutkan.</p>
+    <div class="field">
+      <label for="loginUsername">Username</label>
+      <input type="text" id="loginUsername" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" required>
+    </div>
+    <div class="info-box red" id="loginError" style="display:none;"></div>
+    <button class="btn btn-primary" id="loginSubmit" type="submit">🔓 Masuk</button>
+  </form>
+</div>
+<div class="container" id="appContainer" hidden>
   <header>
     <div class="online-badge" id="onlineBadge">
       <span class="dot"></span>
@@ -28,6 +44,10 @@
       </div>
     </div>
     <span class="header-badge" id="headerBadge">Memuat pengaturan...</span>
+    <div class="user-actions" id="userActions" hidden>
+      <span id="currentUserLabel"></span>
+      <button class="btn btn-ghost" onclick="logout()">Keluar</button>
+    </div>
     </header>
 
   <div class="nav-wrap">
@@ -72,7 +92,7 @@
 
   <!-- TRANSAKSI -->
   <div id="pageTransaksi">
-    <div class="panel">
+    <div class="panel" data-admin-only>
       <div class="panel-title"><span class="ico">💳</span> Pembayaran Pemain</div>
       <div class="info-box green">
         💡 Pilih alokasi pembayaran. Opsi gabungan membagi pembayaran ke iuran Rp<span id="infoIuran">2000</span> dan cicilan custom bola.
@@ -117,7 +137,7 @@
       <button class="btn btn-primary" id="btnSimpanBayar" onclick="simpanPembayaranPemain()">💾 Simpan Pembayaran</button>
     </div>
 
-    <div class="panel">
+    <div class="panel" data-admin-only>
       <div class="panel-title"><span class="ico">➕</span> Transaksi Umum</div>
       <div class="form-row">
         <div class="field"><label>📅 Tanggal</label><input type="date" id="tanggalUmum"></div>
@@ -180,7 +200,7 @@
       <div id="emptyState" class="empty" style="display:none;">📭 Belum ada transaksi.</div>
       <div class="actions">
         <button class="btn btn-ghost" onclick="exportCSV()">📥 Export CSV</button>
-        <button class="btn btn-danger" onclick="hapusSemuaTransaksi()">🗑️ Hapus Semua</button>
+        <button class="btn btn-danger" data-admin-only onclick="hapusSemuaTransaksi()">🗑️ Hapus Semua</button>
       </div>
     </div>
   </div>
@@ -225,7 +245,10 @@
           </select>
         </div>
       </div>
-      <button class="btn btn-primary" onclick="simpanDataBaju()">💾 Simpan Data Baju</button>
+      <div class="actions">
+      <button class="btn btn-primary" id="btnSimpanBaju" onclick="simpanDataBaju()">💾 Simpan Data Baju</button>
+      <button class="btn btn-ghost" id="btnBatalEditBaju" onclick="batalEditBaju()" style="display:none;">Batal Edit</button>
+      </div>
     </div>
     <div class="panel">
       <div class="panel-title"><span class="ico">📋</span> Laporan Data Baju Bola</div>
@@ -318,7 +341,7 @@
       <div class="form-row">
         <div class="field"><label>💵 Iuran Flat (Rp)</label><input type="number" id="setIuran" placeholder="2000" min="0"></div>
         <div class="field" style="justify-content:flex-end;">
-          <button class="btn btn-primary" onclick="simpanIuran()" style="width:100%;">💾 Simpan</button>
+          <button class="btn btn-primary" data-admin-only onclick="simpanIuran()" style="width:100%;">💾 Simpan</button>
         </div>
       </div>
     </div>
@@ -328,14 +351,14 @@
       <div class="form-row">
         <div class="field"><label>💵 Target per Pemain (Rp)</label><input type="number" id="setTargetCustom" placeholder="150000" min="0"></div>
         <div class="field" style="justify-content:flex-end;">
-          <button class="btn btn-primary" onclick="simpanTargetCustom()" style="width:100%;">✅ Terapkan</button>
+          <button class="btn btn-primary" data-admin-only onclick="simpanTargetCustom()" style="width:100%;">✅ Terapkan</button>
         </div>
       </div>
     </div>
 
     <div class="panel">
       <div class="panel-title"><span class="ico">➕</span> Daftar Pemain</div>
-      <div style="margin-bottom:16px;">
+      <div style="margin-bottom:16px;" data-admin-only>
         <textarea id="namaPemainBaru" rows="5" placeholder="Masukkan nama pemain, satu nama per baris..."></textarea>
         <p class="picker-hint">Bisa tempel beberapa nama sekaligus, satu nama per baris.</p>
         <button class="btn btn-primary" onclick="tambahPemain()">➕ Tambah Pemain</button>
@@ -357,7 +380,7 @@
           <div class="b-desc">Simpan semua data ke file JSON. Simpan di Google Drive atau kirim ke WA diri sendiri.</div>
           <button class="btn btn-primary" onclick="downloadBackup()" style="width:100%;">💾 Download Backup</button>
         </div>
-        <div class="backup-card">
+        <div class="backup-card" data-admin-only>
           <div class="b-icon">📤</div>
           <div class="b-title">Restore dari File</div>
           <div class="b-desc">Upload file backup JSON. <strong>Data saat ini akan diganti.</strong></div>
@@ -367,7 +390,7 @@
       </div>
     </div>
 
-    <div class="panel" style="border-color: rgba(239,68,68,0.3);">
+    <div class="panel" data-admin-only style="border-color: rgba(239,68,68,0.3);">
       <div class="panel-title"><span class="ico" style="background:rgba(239,68,68,0.15);">⚠️</span> Zona Bahaya</div>
       <div class="info-box red">⚠️ Tindakan tidak bisa dibatalkan. Backup dulu!</div>
       <div class="actions">
@@ -390,6 +413,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

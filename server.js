@@ -2,8 +2,10 @@ const express = require('express');
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'database.db');
 
@@ -38,6 +40,13 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS pengaturan (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS auth_users (
+    username TEXT PRIMARY KEY,
+    role TEXT NOT NULL CHECK(role IN ('admin', 'user')),
+    salt TEXT NOT NULL,
+    password_hash TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS baju_bola (
@@ -124,6 +133,169 @@ function n(v, fallback = 0) {
 }
 
 app.use(express.json({ limit: '10mb' }));
+
+const AUTH_USERS = [
+  { username: 'admin', role: 'admin', passwordEnv: 'AUTH_ADMIN_PASSWORD' },
+  { username: 'user', role: 'user', passwordEnv: 'AUTH_USER_PASSWORD' }
+];
+const SESSION_COOKIE = 'keuangan_session';
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const sessions = new Map();
+const loginAttempts = new Map();
+const scryptOptions = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
+const dummySalt = crypto.randomBytes(16).toString('hex');
+const dummyHash = crypto.scryptSync(crypto.randomBytes(32), dummySalt, 64, scryptOptions);
+
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64, scryptOptions);
+}
+
+function initializeAuthUsers() {
+  const existing = db.prepare('SELECT username, role FROM auth_users ORDER BY username').all();
+  if (existing.length === 0) {
+    const credentials = AUTH_USERS.map(user => ({
+      ...user,
+      password: process.env[user.passwordEnv]
+    }));
+    const missing = credentials.filter(user => !user.password);
+    if (missing.length) {
+      throw new Error(
+        `Set ${missing.map(user => user.passwordEnv).join(' and ')} before first startup to initialize login accounts`
+      );
+    }
+    const short = credentials.find(user => user.password.length < 8);
+    if (short) throw new Error(`${short.passwordEnv} must be at least 8 characters`);
+
+    const insert = db.prepare(
+      'INSERT INTO auth_users (username, role, salt, password_hash) VALUES (?, ?, ?, ?)'
+    );
+    runTx(() => credentials.forEach(user => {
+      const salt = crypto.randomBytes(16).toString('hex');
+      insert.run(user.username, user.role, salt, hashPassword(user.password, salt).toString('hex'));
+    }));
+    return;
+  }
+
+  const complete = AUTH_USERS.every(expected =>
+    existing.some(user => user.username === expected.username && user.role === expected.role)
+  );
+  if (!complete || existing.length !== AUTH_USERS.length) {
+    throw new Error('Login database must contain exactly the admin and user accounts');
+  }
+}
+
+initializeAuthUsers();
+
+function requestOriginIsSame(req) {
+  const origin = req.get('origin');
+  if (!origin) return false;
+  try {
+    return new URL(origin).origin === `${req.protocol}://${req.get('host')}`;
+  } catch {
+    return false;
+  }
+}
+
+function readSession(req) {
+  const cookieHeader = req.get('cookie') || '';
+  const token = cookieHeader.split(';').map(value => value.trim())
+    .find(value => value.startsWith(`${SESSION_COOKIE}=`))
+    ?.slice(SESSION_COOKIE.length + 1);
+  if (!token) return null;
+
+  const key = crypto.createHash('sha256').update(token).digest('hex');
+  const session = sessions.get(key);
+  if (!session) return null;
+  if (session.expiresAt <= Date.now()) {
+    sessions.delete(key);
+    return null;
+  }
+  session.expiresAt = Date.now() + SESSION_TTL_MS;
+  return { key, session };
+}
+
+app.get('/api/auth/session', (req, res) => {
+  const current = readSession(req);
+  res.set('Cache-Control', 'no-store');
+  res.json({ user: current ? current.session.user : null });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!requestOriginIsSame(req)) return res.status(403).json({ error: 'Permintaan login tidak valid' });
+
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const attempt = loginAttempts.get(ip);
+  if (attempt && attempt.blockedUntil > Date.now()) {
+    return res.status(429).json({ error: 'Terlalu banyak percobaan. Coba lagi 15 menit lagi.' });
+  }
+
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const user = db.prepare('SELECT username, role, salt, password_hash FROM auth_users WHERE username = ?')
+    .get(username);
+  const expectedHash = user ? Buffer.from(user.password_hash, 'hex') : dummyHash;
+  const actualHash = hashPassword(password, user ? user.salt : dummySalt);
+  const valid = expectedHash.length === actualHash.length && crypto.timingSafeEqual(expectedHash, actualHash);
+
+  if (!user || !valid) {
+    const failures = attempt && attempt.windowUntil > Date.now() ? attempt.failures + 1 : 1;
+    loginAttempts.set(ip, {
+      failures,
+      windowUntil: Date.now() + 15 * 60 * 1000,
+      blockedUntil: failures >= 5 ? Date.now() + 15 * 60 * 1000 : 0
+    });
+    return res.status(attempt && attempt.failures >= 4 ? 429 : 401)
+      .json({ error: 'Username atau password salah' });
+  }
+
+  loginAttempts.delete(ip);
+  for (const [sessionKey, session] of sessions) {
+    if (session.expiresAt <= Date.now()) sessions.delete(sessionKey);
+  }
+  const token = crypto.randomBytes(32).toString('hex');
+  const key = crypto.createHash('sha256').update(token).digest('hex');
+  sessions.set(key, {
+    user: { username: user.username, role: user.role },
+    expiresAt: Date.now() + SESSION_TTL_MS
+  });
+  const secure = req.secure ? '; Secure' : '';
+  res.set('Set-Cookie',
+    `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}${secure}`
+  );
+  res.json({ user: { username: user.username, role: user.role } });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!requestOriginIsSame(req)) return res.status(403).json({ error: 'Permintaan logout tidak valid' });
+  const current = readSession(req);
+  if (current) sessions.delete(current.key);
+  res.set('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+  res.json({ success: true });
+});
+
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  if (req.path.startsWith('/auth/')) return next();
+
+  const current = readSession(req);
+  if (!current) return res.status(401).json({ error: 'Silakan login untuk melanjutkan' });
+  req.authUser = current.session.user;
+
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    if (!requestOriginIsSame(req)) {
+      return res.status(403).json({ error: 'Permintaan tidak valid' });
+    }
+    const userCanManageShirts = req.authUser.role === 'user' &&
+      /^\/baju(?:\/\d+)?$/.test(req.path) &&
+      ['POST', 'PUT', 'DELETE'].includes(req.method);
+    if (req.authUser.role !== 'admin' && !userCanManageShirts) {
+      return res.status(403).json({ error: 'Akses hanya tersedia untuk admin' });
+    }
+  }
+  next();
+});
 
 app.get('/api/pengaturan', safe((req, res) => {
   const rows = db.prepare('SELECT key, value FROM pengaturan').all();
@@ -294,6 +466,30 @@ app.post('/api/baju', safe((req, res) => {
     VALUES (?, ?, ?, ?)
   `).run(pemainId, namaBaju, nomor, ukuran);
   res.json(db.prepare('SELECT * FROM baju_bola WHERE id = ?').get(result.lastInsertRowid));
+}));
+
+app.put('/api/baju/:id', safe((req, res) => {
+  const id = n(req.params.id);
+  const pemainId = n(req.body?.pemain_id);
+  const namaBaju = typeof req.body?.nama_baju === 'string' ? req.body.nama_baju.trim() : '';
+  const nomor = typeof req.body?.nomor_punggung === 'string' ? req.body.nomor_punggung.trim() : '';
+  const ukuran = typeof req.body?.ukuran === 'string' ? req.body.ukuran.trim().toUpperCase() : '';
+  const ukuranValid = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].includes(ukuran);
+
+  if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(pemainId) || pemainId <= 0 ||
+      !namaBaju || namaBaju.length > 80 || !nomor || nomor.length > 10 || !ukuranValid) {
+    return res.status(400).json({ error: 'Data baju tidak valid atau belum lengkap' });
+  }
+  if (!db.prepare('SELECT id FROM pemain WHERE id = ?').get(pemainId)) {
+    return res.status(400).json({ error: 'Pemain tidak ditemukan' });
+  }
+  const result = db.prepare(`
+    UPDATE baju_bola
+    SET pemain_id = ?, nama_baju = ?, nomor_punggung = ?, ukuran = ?
+    WHERE id = ?
+  `).run(pemainId, namaBaju, nomor, ukuran, id);
+  if (!result.changes) return res.status(404).json({ error: 'Data baju tidak ditemukan' });
+  res.json(db.prepare('SELECT * FROM baju_bola WHERE id = ?').get(id));
 }));
 
 app.delete('/api/baju/:id', safe((req, res) => {

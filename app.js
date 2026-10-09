@@ -1,5 +1,7 @@
 // ================== CONFIG ==================
 const API = ''; // Kosong = same origin
+let CURRENT_USER = null;
+let editBajuId = null;
 let DATA = {
   transaksi: [],
   pemain: [],
@@ -44,13 +46,92 @@ function toast(msg, isError = false) {
 async function api(url, options = {}) {
   const res = await fetch(API + url, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
     ...options
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Network error' }));
+    if (res.status === 401 && !url.startsWith('/api/auth/')) showLogin();
     throw new Error(err.error || 'Request failed');
   }
   return res.json();
+}
+
+function showLogin() {
+  CURRENT_USER = null;
+  document.getElementById('appContainer').hidden = true;
+  document.getElementById('loginScreen').hidden = false;
+  document.getElementById('userActions').hidden = true;
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginUsername').focus();
+}
+
+function showApp(user) {
+  CURRENT_USER = user;
+  document.body.dataset.role = user.role;
+  document.getElementById('loginScreen').hidden = true;
+  document.getElementById('appContainer').hidden = false;
+  document.getElementById('userActions').hidden = false;
+  document.getElementById('currentUserLabel').textContent =
+    `${user.username} • ${user.role === 'admin' ? 'Admin' : 'User'}`;
+  document.querySelectorAll('[data-admin-only]').forEach(element => {
+    element.hidden = user.role !== 'admin';
+  });
+  document.getElementById('setIuran').disabled = user.role !== 'admin';
+  document.getElementById('setTargetCustom').disabled = user.role !== 'admin';
+}
+
+async function checkSession() {
+  try {
+    const { user } = await api('/api/auth/session');
+    if (!user) {
+      showLogin();
+      return;
+    }
+    showApp(user);
+    await loadAll();
+  } catch (err) {
+    console.error(err);
+    showLogin();
+    const errorEl = document.getElementById('loginError');
+    errorEl.textContent = 'Tidak dapat menghubungi server: ' + err.message;
+    errorEl.style.display = 'block';
+  }
+}
+
+document.getElementById('loginForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = document.getElementById('loginSubmit');
+  const errorEl = document.getElementById('loginError');
+  button.disabled = true;
+  errorEl.style.display = 'none';
+  try {
+    const { user } = await api('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: document.getElementById('loginUsername').value,
+        password: document.getElementById('loginPassword').value
+      })
+    });
+    document.getElementById('loginPassword').value = '';
+    showApp(user);
+    await loadAll();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    button.disabled = false;
+  }
+});
+
+async function logout() {
+  try {
+    await api('/api/auth/logout', { method: 'POST', body: '{}' });
+    document.body.removeAttribute('data-role');
+    showLogin();
+  } catch (err) {
+    toast('Gagal logout: ' + err.message, true);
+  }
 }
 
 // ================== LOAD DATA ==================
@@ -157,7 +238,7 @@ function renderTabel() {
         <td data-label="Jumlah" class="${isMasuk ? 'amount-in' : 'amount-out'} trx-amount">
           ${isMasuk ? '+' : '−'} ${rupiah(t.jumlah)}
         </td>
-        <td data-label=""><button class="del-btn" onclick="hapusTransaksi(${t.id})">Hapus</button></td>
+        <td data-label="">${CURRENT_USER?.role === 'admin' ? `<button class="del-btn" onclick="hapusTransaksi(${t.id})">Hapus</button>` : ''}</td>
       </tr>
     `;
   }).join('');
@@ -195,7 +276,10 @@ function renderBaju() {
       <td data-label="Nomor">${escapeHtml(item.nomor_punggung)}</td>
       <td data-label="Ukuran">${escapeHtml(item.ukuran)}</td>
       <td data-label="Status"><span class="badge ${item.lunas ? 'status-lunas' : 'status-belum'}">${item.lunas ? '✅ Lunas' : '⏳ Belum lunas'}</span></td>
-      <td data-label=""><button class="del-btn" onclick="hapusDataBaju(${item.id})">Hapus</button></td>
+      <td data-label="">
+        <button class="btn btn-ghost" onclick="mulaiEditBaju(${item.id})">Edit</button>
+        <button class="del-btn" onclick="hapusDataBaju(${item.id})">Hapus</button>
+      </td>
     </tr>
   `).join('');
 }
@@ -387,7 +471,7 @@ function renderPengaturan() {
               <div class="sub">Terkumpul: ${rupiah(stat.total_custom || 0)} / ${rupiah(DATA.pengaturan.targetCustom)}</div>
             </div>
           </div>
-          <button class="del-btn" onclick="hapusPemain(${p.id})">Hapus</button>
+          ${CURRENT_USER?.role === 'admin' ? `<button class="del-btn" onclick="hapusPemain(${p.id})">Hapus</button>` : ''}
         </div>
       `;
     }).join('');
@@ -591,23 +675,40 @@ async function simpanDataBaju() {
   }
 
   try {
-    await api('/api/baju', {
-      method: 'POST',
-      body: JSON.stringify({
-        pemain_id: Number(pemainId),
-        nama_baju: namaBaju,
-        nomor_punggung: nomor,
-        ukuran
-      })
+    const editing = editBajuId !== null;
+    await api(editing ? '/api/baju/' + editBajuId : '/api/baju', {
+      method: editing ? 'PUT' : 'POST',
+      body: JSON.stringify({ pemain_id: Number(pemainId), nama_baju: namaBaju, nomor_punggung: nomor, ukuran })
     });
-    document.getElementById('bajuNama').value = '';
-    document.getElementById('bajuNomor').value = '';
-    document.getElementById('bajuUkuran').value = '';
-    toast('✅ Data baju disimpan');
+    batalEditBaju();
+    toast(editing ? '✅ Data baju diperbarui' : '✅ Data baju disimpan');
     await loadAll();
   } catch (err) {
     toast('Gagal simpan data baju: ' + err.message, true);
   }
+}
+
+function mulaiEditBaju(id) {
+  const item = DATA.baju.find(baju => String(baju.id) === String(id));
+  if (!item) { toast('Data baju tidak ditemukan', true); return; }
+  editBajuId = item.id;
+  document.getElementById('bajuPemain').value = String(item.pemain_id);
+  document.getElementById('bajuNama').value = item.nama_baju;
+  document.getElementById('bajuNomor').value = item.nomor_punggung;
+  document.getElementById('bajuUkuran').value = item.ukuran;
+  document.getElementById('btnSimpanBaju').textContent = '💾 Simpan Perubahan';
+  document.getElementById('btnBatalEditBaju').style.display = '';
+  document.getElementById('bajuPemain').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function batalEditBaju() {
+  editBajuId = null;
+  document.getElementById('bajuPemain').value = '';
+  document.getElementById('bajuNama').value = '';
+  document.getElementById('bajuNomor').value = '';
+  document.getElementById('bajuUkuran').value = '';
+  document.getElementById('btnSimpanBaju').textContent = '💾 Simpan Data Baju';
+  document.getElementById('btnBatalEditBaju').style.display = 'none';
 }
 
 async function hapusDataBaju(id) {
@@ -1184,5 +1285,5 @@ document.getElementById('laporanBulan').value = bulanIni;
 document.getElementById('laporanDari').value = bulanIni;
 document.getElementById('laporanSampai').value = bulanIni;
 
-loadAll();
+checkSession();
 setInterval(loadAll, 30000); // auto-refresh tiap 30 detik
