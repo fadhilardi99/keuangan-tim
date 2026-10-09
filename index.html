@@ -229,6 +229,16 @@
     </div>
     <div class="panel">
       <div class="panel-title"><span class="ico">📋</span> Laporan Data Baju Bola</div>
+      <div class="actions laporan-actions">
+        <button class="btn btn-primary" onclick="generateLaporanBaju()">📊 Generate</button>
+        <button class="btn btn-ghost" onclick="copyLaporanBaju()">📋 Copy</button>
+        <button class="btn btn-wa" onclick="shareLaporanBaju()">📱 Share WA</button>
+        <button class="btn btn-ghost" onclick="printLaporanBaju()">🖨️ Print</button>
+        <button class="btn btn-ghost" onclick="exportBajuCSV()">📥 Export CSV</button>
+      </div>
+      <div class="laporan-preview" id="laporanBajuPreview">
+        <div class="empty">Klik Generate untuk menampilkan laporan data baju.</div>
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Pemain</th><th>Nama di Baju</th><th>Nomor</th><th>Ukuran</th><th>Status</th><th></th></tr></thead>

@@ -200,6 +200,83 @@ function renderBaju() {
   `).join('');
 }
 
+function generateLaporanBaju() {
+  const laporanPreview = document.getElementById('laporanBajuPreview');
+  if (DATA.baju.length === 0) {
+    window._laporanBajuTeks = '';
+    laporanPreview.innerHTML = '<div class="empty">📭 Belum ada data baju bola.</div>';
+    toast('Belum ada data baju bola untuk dilaporkan', true);
+    return;
+  }
+
+  const ukuranCount = {};
+  DATA.baju.forEach(item => {
+    ukuranCount[item.ukuran] = (ukuranCount[item.ukuran] || 0) + 1;
+  });
+
+  let teks = `👕 LAPORAN DATA BAJU BOLA\n`;
+  teks += `Tanggal: ${new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })}\n`;
+  teks += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+  teks += `📋 Total pesanan: ${DATA.baju.length}\n`;
+  teks += `✅ Lunas: ${DATA.baju.filter(item => item.lunas).length}\n`;
+  teks += `⏳ Belum lunas: ${DATA.baju.filter(item => !item.lunas).length}\n`;
+  teks += `📏 Ukuran: ${Object.entries(ukuranCount).map(([ukuran, jumlah]) => `${ukuran} (${jumlah})`).join(', ')}\n\n`;
+  teks += `📄 RINCIAN PESANAN\n━━━━━━━━━━━━━━━━━━━━\n`;
+  DATA.baju.forEach((item, index) => {
+    teks += `${index + 1}. ${item.pemain_nama}\n`;
+    teks += `   Nama di baju: ${item.nama_baju}\n`;
+    teks += `   Nomor: ${item.nomor_punggung} | Ukuran: ${item.ukuran}\n`;
+    teks += `   Status: ${item.lunas ? 'Lunas' : 'Belum lunas'}\n`;
+  });
+
+  window._laporanBajuTeks = teks;
+  laporanPreview.innerHTML = `<pre>${escapeHtml(teks)}</pre>`;
+  toast('✅ Laporan data baju digenerate');
+}
+
+function copyLaporanBaju() {
+  if (!window._laporanBajuTeks) { toast('Generate laporan dulu!', true); return; }
+  navigator.clipboard.writeText(window._laporanBajuTeks)
+    .then(() => toast('✅ Laporan data baju disalin'))
+    .catch(err => toast('Gagal menyalin laporan: ' + err.message, true));
+}
+
+function shareLaporanBaju() {
+  if (!window._laporanBajuTeks) { toast('Generate laporan dulu!', true); return; }
+  window.open(`https://wa.me/?text=${encodeURIComponent(window._laporanBajuTeks)}`, '_blank');
+}
+
+function printLaporanBaju() {
+  if (!window._laporanBajuTeks) { toast('Generate laporan dulu!', true); return; }
+  const w = window.open('', '_blank');
+  if (!w) { toast('Izinkan pop-up untuk mencetak laporan', true); return; }
+  w.document.write(`<html><head><title>Laporan Data Baju Bola</title><style>body{font-family:monospace;padding:40px;line-height:1.6}pre{white-space:pre-wrap;font-size:14px}</style></head><body><pre>${escapeHtml(window._laporanBajuTeks)}</pre></body></html>`);
+  w.document.close();
+  setTimeout(() => w.print(), 300);
+}
+
+function exportBajuCSV() {
+  if (DATA.baju.length === 0) { toast('Belum ada data baju bola untuk diekspor', true); return; }
+  const header = ['Pemain', 'Nama di Baju', 'Nomor Punggung', 'Ukuran', 'Status'];
+  const rows = DATA.baju.map(item => [
+    item.pemain_nama,
+    item.nama_baju,
+    item.nomor_punggung,
+    item.ukuran,
+    item.lunas ? 'Lunas' : 'Belum lunas'
+  ]);
+  const csv = [header, ...rows]
+    .map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `laporan-data-baju-${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  toast('✅ CSV data baju di-download');
+}
+
 function playerCardHtml(p) {
   return `
     <div class="player-card ${p.lunas ? 'lunas' : ''}">
