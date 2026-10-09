@@ -42,7 +42,8 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS baju_bola (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pemain_id INTEGER NOT NULL,
+    pemain_id INTEGER,
+    pemain_nama TEXT NOT NULL,
     nama_baju TEXT NOT NULL,
     nomor_punggung TEXT NOT NULL,
     ukuran TEXT NOT NULL,
@@ -55,6 +56,32 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_transaksi_jenis ON transaksi(jenis);
   CREATE INDEX IF NOT EXISTS idx_baju_bola_pemain ON baju_bola(pemain_id);
 `);
+
+const bajuColumns = db.prepare('PRAGMA table_info(baju_bola)').all();
+const pemainIdColumn = bajuColumns.find(column => column.name === 'pemain_id');
+if (!bajuColumns.some(column => column.name === 'pemain_nama') || pemainIdColumn?.notnull) {
+  db.exec(`
+    BEGIN;
+    CREATE TABLE baju_bola_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pemain_id INTEGER,
+      pemain_nama TEXT NOT NULL,
+      nama_baju TEXT NOT NULL,
+      nomor_punggung TEXT NOT NULL,
+      ukuran TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      FOREIGN KEY (pemain_id) REFERENCES pemain(id) ON DELETE CASCADE
+    );
+    INSERT INTO baju_bola_new (id, pemain_id, pemain_nama, nama_baju, nomor_punggung, ukuran, created_at)
+    SELECT b.id, b.pemain_id, p.nama, b.nama_baju, b.nomor_punggung, b.ukuran, b.created_at
+    FROM baju_bola b
+    JOIN pemain p ON p.id = b.pemain_id;
+    DROP TABLE baju_bola;
+    ALTER TABLE baju_bola_new RENAME TO baju_bola;
+    COMMIT;
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_baju_bola_pemain ON baju_bola(pemain_id)');
+}
 
 const defaultPengaturan = {
   iuran: '2000',
@@ -233,36 +260,58 @@ app.delete('/api/transaksi', safe((req, res) => {
 app.get('/api/baju', safe((req, res) => {
   const target = n(db.prepare("SELECT value FROM pengaturan WHERE key = 'targetCustom'").get()?.value, 150000);
   const rows = db.prepare(`
-    SELECT b.*, p.nama AS pemain_nama,
-      COALESCE(SUM(t.custom_part), 0) AS total_custom
+    SELECT b.*, COALESCE(b.pemain_nama, p.nama) AS pemain_nama,
+      CASE WHEN b.pemain_id IS NULL THEN NULL ELSE COALESCE(SUM(t.custom_part), 0) END AS total_custom
     FROM baju_bola b
-    JOIN pemain p ON p.id = b.pemain_id
+    LEFT JOIN pemain p ON p.id = b.pemain_id
     LEFT JOIN transaksi t ON t.pemain_id = p.id AND t.jenis = 'masuk'
     GROUP BY b.id
-    ORDER BY p.nama, b.nomor_punggung
+    ORDER BY pemain_nama, b.nomor_punggung
   `).all();
-  res.json(rows.map(row => ({ ...row, lunas: row.total_custom >= target })));
+  res.json(rows.map(row => ({
+    ...row,
+    lunas: row.pemain_id === null ? null : row.total_custom >= target
+  })));
 }));
 
 app.post('/api/baju', safe((req, res) => {
-  const pemainId = n(req.body?.pemain_id);
+  const pemainId = req.body?.pemain_id === undefined || req.body?.pemain_id === null
+    ? null
+    : Number(req.body.pemain_id);
+  let pemainNama = typeof req.body?.pemain_nama === 'string' ? req.body.pemain_nama.trim() : '';
   const namaBaju = typeof req.body?.nama_baju === 'string' ? req.body.nama_baju.trim() : '';
   const nomor = typeof req.body?.nomor_punggung === 'string' ? req.body.nomor_punggung.trim() : '';
   const ukuran = typeof req.body?.ukuran === 'string' ? req.body.ukuran.trim().toUpperCase() : '';
   const ukuranValid = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].includes(ukuran);
 
-  if (!Number.isInteger(pemainId) || pemainId <= 0 || !namaBaju || namaBaju.length > 80 ||
+  if ((pemainId !== null && (!Number.isInteger(pemainId) || pemainId <= 0)) ||
+      !pemainNama || pemainNama.length > 80 || !namaBaju || namaBaju.length > 80 ||
       !nomor || nomor.length > 10 || !ukuranValid) {
     return res.status(400).json({ error: 'Data baju tidak valid atau belum lengkap' });
   }
-  if (!db.prepare('SELECT id FROM pemain WHERE id = ?').get(pemainId)) {
-    return res.status(400).json({ error: 'Pemain tidak ditemukan' });
+
+  if (pemainId !== null) {
+    const pemain = db.prepare('SELECT nama FROM pemain WHERE id = ?').get(pemainId);
+    if (!pemain) return res.status(400).json({ error: 'Pemain tidak ditemukan' });
+    pemainNama = pemain.nama;
+  } else {
+    let namaBajuTersimpan;
+    try {
+      namaBajuTersimpan = JSON.parse(
+        db.prepare("SELECT value FROM pengaturan WHERE key = 'namaBaju'").get()?.value || '[]'
+      );
+    } catch {
+      return res.status(500).json({ error: 'Daftar nama baju di pengaturan tidak valid' });
+    }
+    if (!Array.isArray(namaBajuTersimpan) || !namaBajuTersimpan.includes(pemainNama)) {
+      return res.status(400).json({ error: 'Nama tidak ditemukan di daftar nama baju' });
+    }
   }
 
   const result = db.prepare(`
-    INSERT INTO baju_bola (pemain_id, nama_baju, nomor_punggung, ukuran)
-    VALUES (?, ?, ?, ?)
-  `).run(pemainId, namaBaju, nomor, ukuran);
+    INSERT INTO baju_bola (pemain_id, pemain_nama, nama_baju, nomor_punggung, ukuran)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(pemainId, pemainNama, namaBaju, nomor, ukuran);
   res.json(db.prepare('SELECT * FROM baju_bola WHERE id = ?').get(result.lastInsertRowid));
 }));
 
@@ -379,17 +428,23 @@ app.post('/api/restore', safe((req, res) => {
 
     if (baju && baju.length) {
       const stmtBaju = db.prepare(`
-        INSERT INTO baju_bola (id, pemain_id, nama_baju, nomor_punggung, ukuran, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO baju_bola (id, pemain_id, pemain_nama, nama_baju, nomor_punggung, ukuran, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
-      baju.forEach(item => stmtBaju.run(
-        item.id ?? null,
-        n(item.pemain_id),
-        item.nama_baju,
-        String(item.nomor_punggung),
-        item.ukuran,
-        item.created_at || new Date().toISOString()
-      ));
+      baju.forEach(item => {
+        const pemainId = item.pemain_id ? n(item.pemain_id) : null;
+        const pemainNama = item.pemain_nama ||
+          pemain.find(p => String(p.id) === String(pemainId))?.nama;
+        stmtBaju.run(
+          item.id ?? null,
+          pemainId,
+          pemainNama,
+          item.nama_baju,
+          String(item.nomor_punggung),
+          item.ukuran,
+          item.created_at || new Date().toISOString()
+        );
+      });
     }
 
     if (transaksi && transaksi.length) {
