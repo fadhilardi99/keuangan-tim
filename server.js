@@ -7,7 +7,9 @@ const crypto = require('crypto');
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
-const DB_PATH = path.join(__dirname, 'database.db');
+const DB_PATH = process.env.DATABASE_PATH
+  ? path.resolve(process.env.DATABASE_PATH)
+  : path.join(__dirname, 'database.db');
 
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL');

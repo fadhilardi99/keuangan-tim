@@ -51,10 +51,20 @@ Aplikasi ini butuh **Node.js + file database**, jadi jangan pakai GitHub Pages /
 1. Buat akun di [railway.app](https://railway.app) (bisa login dengan GitHub).
 2. Upload project ke GitHub (atau pakai Railway CLI).
 3. Di Railway: **New Project** → **Deploy from GitHub repo**.
-4. Railway otomatis menjalankan `npm start` dan memakai `PORT` dari environment.
-5. Tambahkan **Volume** (disk) yang di-mount ke folder project, supaya `database.db` tidak hilang saat restart.
-6. Setelah deploy selesai, buka **Settings → Networking → Generate Domain**.
-7. Link itu (contoh `https://keuangan-tim-xxxx.up.railway.app`) bisa dibuka di HP dari mana saja.
+4. Di pengaturan service, tambahkan **Volume** dengan mount path `/data`.
+5. Tambahkan variables berikut di tab **Variables**:
+   - `DATABASE_PATH=/data/database.db`
+   - `AUTH_ADMIN_PASSWORD` = password awal admin
+   - `AUTH_USER_PASSWORD` = password awal user
+6. Railway otomatis menjalankan `npm start` dan memakai `PORT` dari environment. Database dan akun dibuat pertama kali di volume; jangan hapus volume agar data tetap ada.
+7. Setelah deploy selesai, buka **Settings → Networking → Generate Domain**.
+8. Link itu (contoh `https://keuangan-tim-xxxx.up.railway.app`) bisa dibuka di HP dari mana saja.
+
+#### Memindahkan data lokal ke Railway
+
+1. Login sebagai admin di aplikasi lokal, lalu buka **Setelan → Download Backup** untuk mengunduh file JSON.
+2. Setelah Railway selesai deploy, buka domain Railway dan login sebagai admin dengan password yang disetel di variables.
+3. Buka **Setelan → Restore dari File**, pilih JSON backup tadi, lalu konfirmasi. Pemain, transaksi, pengaturan, dan data baju akan dimasukkan ke database pada volume Railway. Akun login Railway tetap memakai password dari variables.
 
 ### Opsi lain: Render
 
