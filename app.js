@@ -181,6 +181,8 @@ function renderAll() {
   renderBaju();
   renderPengaturan();
   renderStatInfo();
+  renderChart();
+  renderRekapLatihan();
 }
 
 function renderStatistik() {
@@ -897,7 +899,7 @@ function renderRekapLatihan() {
   const keys = Object.keys(groups).sort((a,b) => new Date(b) - new Date(a));
   if (keys.length === 0) { wrap.innerHTML = '<div class="empty">📭 Belum ada pembayaran.</div>'; return; }
 
-  wrap.innerHTML = keys.slice(0, 10).map(tgl => {
+  wrap.innerHTML = keys.map(tgl => {
     const items = groups[tgl];
     const total = items.reduce((s,t) => s + t.jumlah, 0);
     const totalIuran = items.reduce((s,t) => s + (t.iuran_part||0), 0);
@@ -1112,6 +1114,46 @@ function printLaporan() {
   w.document.write(`<html><head><title>Laporan</title><style>body{font-family:monospace;padding:40px;line-height:1.6}pre{white-space:pre-wrap;font-size:14px}</style></head><body><pre>${window._laporanTeks.replace(/</g,'&lt;')}</pre></body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 300);
+}
+
+function exportLaporanCSV() {
+  const mode = document.getElementById('laporanMode').value;
+  let transaksi;
+  let periode;
+
+  if (mode === 'single') {
+    periode = document.getElementById('laporanBulan').value;
+    if (!periode) { toast('Pilih bulan!', true); return; }
+    transaksi = DATA.transaksi.filter(t => String(t.tanggal).slice(0, 7) === periode);
+  } else {
+    const dari = document.getElementById('laporanDari').value;
+    const sampai = document.getElementById('laporanSampai').value;
+    if (!dari || !sampai) { toast('Pilih bulan!', true); return; }
+    if (dari > sampai) { toast('Bulan awal harus sebelum akhir!', true); return; }
+    periode = `${dari}-sd-${sampai}`;
+    transaksi = DATA.transaksi.filter(t => {
+      const bulan = String(t.tanggal).slice(0, 7);
+      return bulan >= dari && bulan <= sampai;
+    });
+  }
+
+  if (transaksi.length === 0) { toast('Tidak ada transaksi pada periode ini', true); return; }
+
+  const header = ['Tanggal', 'Pemain', 'Kategori', 'Keterangan', 'Jenis', 'Iuran', 'Custom', 'Jumlah'];
+  const rows = transaksi.map(t => [
+    t.tanggal, t.pemain_nama || '-', t.kategori || '-',
+    t.keterangan || '-', t.jenis, t.iuran_part || 0, t.custom_part || 0, t.jumlah
+  ]);
+  const csv = [header, ...rows]
+    .map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `laporan-keuangan-${periode}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  toast('✅ CSV laporan di-download');
 }
 
 // ================== SETELAN ==================
