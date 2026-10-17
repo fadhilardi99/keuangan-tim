@@ -57,6 +57,7 @@ db.exec(`
     nama_baju TEXT NOT NULL,
     nomor_punggung TEXT NOT NULL,
     ukuran TEXT NOT NULL,
+    keterangan TEXT NOT NULL DEFAULT '',
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (pemain_id) REFERENCES pemain(id) ON DELETE CASCADE
   );
@@ -91,6 +92,9 @@ function runTx(fn) {
 const bajuColumns = db.prepare('PRAGMA table_info(baju_bola)').all();
 const pemainIdColumn = bajuColumns.find(column => column.name === 'pemain_id');
 if (bajuColumns.some(column => column.name === 'pemain_nama') || !pemainIdColumn?.notnull) {
+  const keteranganSelect = bajuColumns.some(column => column.name === 'keterangan')
+    ? "COALESCE(keterangan, '')"
+    : "''";
   if (db.prepare('SELECT 1 FROM baju_bola WHERE pemain_id IS NULL LIMIT 1').get()) {
     throw new Error('Data baju tanpa pemain terdaftar harus ditangani sebelum fitur daftar nama baju dihapus');
   }
@@ -103,17 +107,21 @@ if (bajuColumns.some(column => column.name === 'pemain_nama') || !pemainIdColumn
       nama_baju TEXT NOT NULL,
       nomor_punggung TEXT NOT NULL,
       ukuran TEXT NOT NULL,
+      keterangan TEXT NOT NULL DEFAULT '',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       FOREIGN KEY (pemain_id) REFERENCES pemain(id) ON DELETE CASCADE
     );
-    INSERT INTO baju_bola_new (id, pemain_id, nama_baju, nomor_punggung, ukuran, created_at)
-    SELECT id, pemain_id, nama_baju, nomor_punggung, ukuran, created_at
+    INSERT INTO baju_bola_new (id, pemain_id, nama_baju, nomor_punggung, ukuran, keterangan, created_at)
+    SELECT id, pemain_id, nama_baju, nomor_punggung, ukuran, ${keteranganSelect}, created_at
     FROM baju_bola;
     DROP TABLE baju_bola;
     ALTER TABLE baju_bola_new RENAME TO baju_bola;
     COMMIT;
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_baju_bola_pemain ON baju_bola(pemain_id)');
+}
+if (!db.prepare('PRAGMA table_info(baju_bola)').all().some(column => column.name === 'keterangan')) {
+  db.exec("ALTER TABLE baju_bola ADD COLUMN keterangan TEXT NOT NULL DEFAULT ''");
 }
 
 function safe(handler) {
@@ -452,10 +460,11 @@ app.post('/api/baju', safe((req, res) => {
   const namaBaju = typeof req.body?.nama_baju === 'string' ? req.body.nama_baju.trim() : '';
   const nomor = typeof req.body?.nomor_punggung === 'string' ? req.body.nomor_punggung.trim() : '';
   const ukuran = typeof req.body?.ukuran === 'string' ? req.body.ukuran.trim().toUpperCase() : '';
+  const keterangan = typeof req.body?.keterangan === 'string' ? req.body.keterangan.trim() : '';
   const ukuranValid = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].includes(ukuran);
 
   if (!Number.isInteger(pemainId) || pemainId <= 0 || !namaBaju || namaBaju.length > 80 ||
-      !nomor || nomor.length > 10 || !ukuranValid) {
+      !nomor || nomor.length > 10 || !ukuranValid || keterangan.length > 250) {
     return res.status(400).json({ error: 'Data baju tidak valid atau belum lengkap' });
   }
 
@@ -464,9 +473,9 @@ app.post('/api/baju', safe((req, res) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO baju_bola (pemain_id, nama_baju, nomor_punggung, ukuran)
-    VALUES (?, ?, ?, ?)
-  `).run(pemainId, namaBaju, nomor, ukuran);
+    INSERT INTO baju_bola (pemain_id, nama_baju, nomor_punggung, ukuran, keterangan)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(pemainId, namaBaju, nomor, ukuran, keterangan);
   res.json(db.prepare('SELECT * FROM baju_bola WHERE id = ?').get(result.lastInsertRowid));
 }));
 
@@ -476,10 +485,12 @@ app.put('/api/baju/:id', safe((req, res) => {
   const namaBaju = typeof req.body?.nama_baju === 'string' ? req.body.nama_baju.trim() : '';
   const nomor = typeof req.body?.nomor_punggung === 'string' ? req.body.nomor_punggung.trim() : '';
   const ukuran = typeof req.body?.ukuran === 'string' ? req.body.ukuran.trim().toUpperCase() : '';
+  const keterangan = typeof req.body?.keterangan === 'string' ? req.body.keterangan.trim() : '';
   const ukuranValid = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].includes(ukuran);
 
   if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(pemainId) || pemainId <= 0 ||
-      !namaBaju || namaBaju.length > 80 || !nomor || nomor.length > 10 || !ukuranValid) {
+      !namaBaju || namaBaju.length > 80 || !nomor || nomor.length > 10 || !ukuranValid ||
+      keterangan.length > 250) {
     return res.status(400).json({ error: 'Data baju tidak valid atau belum lengkap' });
   }
   if (!db.prepare('SELECT id FROM pemain WHERE id = ?').get(pemainId)) {
@@ -487,9 +498,9 @@ app.put('/api/baju/:id', safe((req, res) => {
   }
   const result = db.prepare(`
     UPDATE baju_bola
-    SET pemain_id = ?, nama_baju = ?, nomor_punggung = ?, ukuran = ?
+    SET pemain_id = ?, nama_baju = ?, nomor_punggung = ?, ukuran = ?, keterangan = ?
     WHERE id = ?
-  `).run(pemainId, namaBaju, nomor, ukuran, id);
+  `).run(pemainId, namaBaju, nomor, ukuran, keterangan, id);
   if (!result.changes) return res.status(404).json({ error: 'Data baju tidak ditemukan' });
   res.json(db.prepare('SELECT * FROM baju_bola WHERE id = ?').get(id));
 }));
@@ -607,8 +618,8 @@ app.post('/api/restore', safe((req, res) => {
 
     if (baju && baju.length) {
       const stmtBaju = db.prepare(`
-        INSERT INTO baju_bola (id, pemain_id, nama_baju, nomor_punggung, ukuran, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO baju_bola (id, pemain_id, nama_baju, nomor_punggung, ukuran, keterangan, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       baju.forEach(item => stmtBaju.run(
         item.id ?? null,
@@ -616,6 +627,7 @@ app.post('/api/restore', safe((req, res) => {
         item.nama_baju,
         String(item.nomor_punggung),
         item.ukuran,
+        typeof item.keterangan === 'string' ? item.keterangan : '',
         item.created_at || new Date().toISOString()
       ));
     }

@@ -277,6 +277,7 @@ function renderBaju() {
       <td data-label="Nama di Baju">${escapeHtml(item.nama_baju)}</td>
       <td data-label="Nomor">${escapeHtml(item.nomor_punggung)}</td>
       <td data-label="Ukuran">${escapeHtml(item.ukuran)}</td>
+      <td data-label="Keterangan">${escapeHtml(item.keterangan || '-')}</td>
       <td data-label="Status"><span class="badge ${item.lunas ? 'status-lunas' : 'status-belum'}">${item.lunas ? '✅ Lunas' : '⏳ Belum lunas'}</span></td>
       <td data-label="">
         <button class="btn btn-ghost" onclick="mulaiEditBaju(${item.id})">Edit</button>
@@ -312,6 +313,7 @@ function generateLaporanBaju() {
     teks += `${index + 1}. ${item.pemain_nama}\n`;
     teks += `   Nama di baju: ${item.nama_baju}\n`;
     teks += `   Nomor: ${item.nomor_punggung} | Ukuran: ${item.ukuran}\n`;
+    teks += `   Keterangan: ${item.keterangan || '-'}\n`;
     teks += `   Status: ${item.lunas ? 'Lunas' : 'Belum lunas'}\n`;
   });
 
@@ -343,12 +345,13 @@ function printLaporanBaju() {
 
 function exportBajuCSV() {
   if (DATA.baju.length === 0) { toast('Belum ada data baju bola untuk diekspor', true); return; }
-  const header = ['Pemain', 'Nama di Baju', 'Nomor Punggung', 'Ukuran', 'Status'];
+  const header = ['Pemain', 'Nama di Baju', 'Nomor Punggung', 'Ukuran', 'Keterangan', 'Status'];
   const rows = DATA.baju.map(item => [
     item.pemain_nama,
     item.nama_baju,
     item.nomor_punggung,
     item.ukuran,
+    item.keterangan || '',
     item.lunas ? 'Lunas' : 'Belum lunas'
   ]);
   const csv = [header, ...rows]
@@ -671,6 +674,7 @@ async function simpanDataBaju() {
   const namaBaju = document.getElementById('bajuNama').value.trim();
   const nomor = document.getElementById('bajuNomor').value.trim();
   const ukuran = document.getElementById('bajuUkuran').value;
+  const keterangan = document.getElementById('bajuKeterangan').value.trim();
   if (!pemainId || !namaBaju || !nomor || !ukuran) {
     toast('⚠️ Lengkapi semua data baju!', true);
     return;
@@ -680,7 +684,9 @@ async function simpanDataBaju() {
     const editing = editBajuId !== null;
     await api(editing ? '/api/baju/' + editBajuId : '/api/baju', {
       method: editing ? 'PUT' : 'POST',
-      body: JSON.stringify({ pemain_id: Number(pemainId), nama_baju: namaBaju, nomor_punggung: nomor, ukuran })
+      body: JSON.stringify({
+        pemain_id: Number(pemainId), nama_baju: namaBaju, nomor_punggung: nomor, ukuran, keterangan
+      })
     });
     batalEditBaju();
     toast(editing ? '✅ Data baju diperbarui' : '✅ Data baju disimpan');
@@ -698,6 +704,7 @@ function mulaiEditBaju(id) {
   document.getElementById('bajuNama').value = item.nama_baju;
   document.getElementById('bajuNomor').value = item.nomor_punggung;
   document.getElementById('bajuUkuran').value = item.ukuran;
+  document.getElementById('bajuKeterangan').value = item.keterangan || '';
   document.getElementById('btnSimpanBaju').textContent = '💾 Simpan Perubahan';
   document.getElementById('btnBatalEditBaju').style.display = '';
   document.getElementById('bajuPemain').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -709,6 +716,7 @@ function batalEditBaju() {
   document.getElementById('bajuNama').value = '';
   document.getElementById('bajuNomor').value = '';
   document.getElementById('bajuUkuran').value = '';
+  document.getElementById('bajuKeterangan').value = '';
   document.getElementById('btnSimpanBaju').textContent = '💾 Simpan Data Baju';
   document.getElementById('btnBatalEditBaju').style.display = 'none';
 }
