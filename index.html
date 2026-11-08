@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body class="tab-kas">
 <div class="login-screen" id="loginScreen">
@@ -253,6 +253,7 @@
     </div>
     <div class="panel">
       <div class="panel-title"><span class="ico">📋</span> Laporan Data Baju Bola</div>
+      <div class="info-box green">Nominal dan status mengikuti pembayaran Custom Bola serta target per pemain.</div>
       <div class="actions laporan-actions">
         <button class="btn btn-primary" onclick="generateLaporanBaju()">📊 Generate</button>
         <button class="btn btn-ghost" onclick="copyLaporanBaju()">📋 Copy</button>
@@ -260,12 +261,16 @@
         <button class="btn btn-ghost" onclick="printLaporanBaju()">🖨️ Print</button>
         <button class="btn btn-ghost" onclick="exportBajuCSV()">📥 Export CSV</button>
       </div>
+      <div class="filter-row">
+        <input type="search" id="searchBaju" aria-label="Cari laporan data baju bola"
+          placeholder="🔍 Cari pemain, nama baju, nomor, ukuran, status..." oninput="filterLaporanBaju()">
+      </div>
       <div class="laporan-preview" id="laporanBajuPreview">
         <div class="empty">Klik Generate untuk menampilkan laporan data baju.</div>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Pemain</th><th>Nama di Baju</th><th>Nomor</th><th>Ukuran</th><th>Keterangan</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Pemain</th><th>Nama di Baju</th><th>Nomor</th><th>Ukuran</th><th>Keterangan</th><th>Dibayar</th><th>Target</th><th>Sisa</th><th>Status</th><th></th></tr></thead>
           <tbody id="tabelBajuBody"></tbody>
         </table>
       </div>
@@ -333,6 +338,18 @@
       <div class="laporan-preview" id="laporanPreview">
         <div class="empty">Pilih mode & bulan, klik Generate.</div>
       </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title"><span class="ico">👕</span> Laporan Iuran Baju Bola</div>
+      <div class="info-box green">Nominal dan status mengikuti pembayaran Custom Bola per pemain. Jika satu pemain memiliki beberapa pesanan baju, iurannya tetap dihitung satu kali.</div>
+      <div class="stat-info-grid" id="ringkasanIuranBaju"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Pemain</th><th>Pesanan Baju</th><th>Sudah Dibayar</th><th>Target</th><th>Sisa</th><th>Status</th></tr></thead>
+          <tbody id="laporanIuranBajuBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyLaporanIuranBaju" class="empty" style="display:none;">📭 Belum ada data iuran baju bola.</div>
     </div>
   </div>
 
@@ -415,6 +432,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ Sistem keuangan tim dengan database SQLite bawaan Node.js.
 - Pembayaran pemain dapat dialokasikan ke iuran saja, Custom Bola saja, atau keduanya.
 - Riwayat transaksi dapat difilter menurut tanggal, jenis, dan pemain.
 - Data baju bola mencatat pemain, nama cetak, nomor punggung, ukuran, dan keterangan opsional. Status lunas otomatis mengikuti pembayaran Custom Bola dibanding target per pemain.
+- Laporan data baju bola dapat dicari dan menampilkan nominal dibayar, target, serta sisa. Menu Laporan merangkum pembayaran baju per pemain tanpa menghitung ganda pesanan pemain yang sama.
 - Data baju bola termasuk dalam file backup dan restore.
 - Login admin dapat mengelola semua data. Login user dapat melihat seluruh data dan hanya menambah, mengubah, atau menghapus data baju bola.
 

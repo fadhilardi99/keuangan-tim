@@ -2,6 +2,7 @@
 const API = ''; // Kosong = same origin
 let CURRENT_USER = null;
 let editBajuId = null;
+let laporanBajuGenerated = false;
 let DATA = {
   transaksi: [],
   pemain: [],
@@ -179,6 +180,8 @@ function renderAll() {
   renderPemain();
   renderDaftarPemainSelect();
   renderBaju();
+  if (laporanBajuGenerated) generateLaporanBaju(false);
+  renderLaporanIuranBaju();
   renderPengaturan();
   renderStatInfo();
   renderChart();
@@ -270,56 +273,154 @@ function renderBaju() {
   const tbody = document.getElementById('tabelBajuBody');
   const empty = document.getElementById('emptyBaju');
   if (!tbody || !empty) return;
-  empty.style.display = DATA.baju.length ? 'none' : 'block';
-  tbody.innerHTML = DATA.baju.map(item => `
+  const list = getFilteredBaju();
+  empty.style.display = list.length ? 'none' : 'block';
+  empty.textContent = DATA.baju.length
+    ? '🔎 Tidak ada data baju yang cocok dengan pencarian.'
+    : '📭 Belum ada data baju bola.';
+  tbody.innerHTML = list.map(item => {
+    const pembayaran = getPembayaranBaju(item);
+    return `
     <tr>
       <td data-label="Pemain">${escapeHtml(item.pemain_nama)}</td>
       <td data-label="Nama di Baju">${escapeHtml(item.nama_baju)}</td>
       <td data-label="Nomor">${escapeHtml(item.nomor_punggung)}</td>
       <td data-label="Ukuran">${escapeHtml(item.ukuran)}</td>
       <td data-label="Keterangan">${escapeHtml(item.keterangan || '-')}</td>
-      <td data-label="Status"><span class="badge ${item.lunas ? 'status-lunas' : 'status-belum'}">${item.lunas ? '✅ Lunas' : '⏳ Belum lunas'}</span></td>
+      <td data-label="Dibayar">${rupiah(pembayaran.dibayar)}</td>
+      <td data-label="Target">${rupiah(pembayaran.target)}</td>
+      <td data-label="Sisa">${rupiah(pembayaran.sisa)}</td>
+      <td data-label="Status"><span class="badge ${pembayaran.lunas ? 'status-lunas' : 'status-belum'}">${pembayaran.lunas ? '✅ Lunas' : '⏳ Belum lunas'}</span></td>
       <td data-label="">
         <button class="btn btn-ghost" onclick="mulaiEditBaju(${item.id})">Edit</button>
         <button class="del-btn" onclick="hapusDataBaju(${item.id})">Hapus</button>
       </td>
     </tr>
+  `;
+  }).join('');
+}
+
+function getFilteredBaju() {
+  const search = (document.getElementById('searchBaju')?.value || '').trim().toLocaleLowerCase('id');
+  if (!search) return DATA.baju;
+  return DATA.baju.filter(item => {
+    const pembayaran = getPembayaranBaju(item);
+    const searchable = [
+      item.pemain_nama, item.nama_baju, item.nomor_punggung, item.ukuran, item.keterangan,
+      pembayaran.lunas ? 'lunas' : 'belum lunas',
+      pembayaran.dibayar, pembayaran.target, pembayaran.sisa,
+      rupiah(pembayaran.dibayar), rupiah(pembayaran.target), rupiah(pembayaran.sisa)
+    ].join(' ').toLocaleLowerCase('id');
+    return searchable.includes(search);
+  });
+}
+
+function getPembayaranBaju(item) {
+  const statistik = DATA.statistikPemain.find(p => String(p.id) === String(item.pemain_id));
+  const dibayar = Number(statistik?.total_custom ?? item.total_custom ?? 0);
+  const target = Number(statistik?.target ?? DATA.pengaturan.targetCustom);
+  return {
+    dibayar,
+    target,
+    sisa: Math.max(0, target - dibayar),
+    lunas: statistik?.lunas ?? item.lunas ?? dibayar >= target
+  };
+}
+
+function filterLaporanBaju() {
+  renderBaju();
+  if (laporanBajuGenerated) generateLaporanBaju(false);
+}
+
+function renderLaporanIuranBaju() {
+  const tbody = document.getElementById('laporanIuranBajuBody');
+  const empty = document.getElementById('emptyLaporanIuranBaju');
+  const summary = document.getElementById('ringkasanIuranBaju');
+  if (!tbody || !empty || !summary) return;
+
+  const pesananPerPemain = new Map();
+  DATA.baju.forEach(item => {
+    const key = String(item.pemain_id);
+    if (!pesananPerPemain.has(key)) pesananPerPemain.set(key, []);
+    pesananPerPemain.get(key).push(item);
+  });
+
+  const laporan = [...pesananPerPemain.entries()].map(([, pesanan]) => ({
+    pesanan,
+    nama: pesanan[0].pemain_nama,
+    pembayaran: getPembayaranBaju(pesanan[0])
+  })).sort((a, b) => a.nama.localeCompare(b.nama, 'id'));
+  const lunas = laporan.filter(item => item.pembayaran.lunas).length;
+  const belumLunas = laporan.length - lunas;
+  const totalDibayar = laporan.reduce((total, item) => total + item.pembayaran.dibayar, 0);
+  const totalTarget = laporan.reduce((total, item) => total + item.pembayaran.target, 0);
+  const totalSisa = laporan.reduce((total, item) => total + item.pembayaran.sisa, 0);
+
+  summary.innerHTML = `
+    <div class="stat-info-item"><div class="lbl">Pemain / Pesanan</div><div class="val">${laporan.length} / ${DATA.baju.length}</div></div>
+    <div class="stat-info-item"><div class="lbl">Lunas</div><div class="val green">${lunas} pemain</div></div>
+    <div class="stat-info-item"><div class="lbl">Belum Lunas</div><div class="val">${belumLunas} pemain</div></div>
+    <div class="stat-info-item"><div class="lbl">Sudah Dibayar</div><div class="val blue">${rupiah(totalDibayar)}</div></div>
+    <div class="stat-info-item"><div class="lbl">Total Target</div><div class="val">${rupiah(totalTarget)}</div></div>
+    <div class="stat-info-item"><div class="lbl">Sisa Pembayaran</div><div class="val purple">${rupiah(totalSisa)}</div></div>
+  `;
+  empty.style.display = laporan.length ? 'none' : 'block';
+  tbody.innerHTML = laporan.map(({ nama, pesanan, pembayaran }) => `
+    <tr>
+      <td data-label="Pemain">${escapeHtml(nama)}</td>
+      <td data-label="Pesanan Baju">${pesanan.map(item =>
+        `${escapeHtml(item.nama_baju)} (#${escapeHtml(item.nomor_punggung)})`
+      ).join('<br>')}</td>
+      <td data-label="Sudah Dibayar">${rupiah(pembayaran.dibayar)}</td>
+      <td data-label="Target">${rupiah(pembayaran.target)}</td>
+      <td data-label="Sisa">${rupiah(pembayaran.sisa)}</td>
+      <td data-label="Status"><span class="badge ${pembayaran.lunas ? 'status-lunas' : 'status-belum'}">${pembayaran.lunas ? '✅ Lunas' : '⏳ Belum lunas'}</span></td>
+    </tr>
   `).join('');
 }
 
-function generateLaporanBaju() {
+function generateLaporanBaju(showToast = true) {
+  laporanBajuGenerated = true;
   const laporanPreview = document.getElementById('laporanBajuPreview');
-  if (DATA.baju.length === 0) {
+  const list = getFilteredBaju();
+  if (list.length === 0) {
     window._laporanBajuTeks = '';
-    laporanPreview.innerHTML = '<div class="empty">📭 Belum ada data baju bola.</div>';
-    toast('Belum ada data baju bola untuk dilaporkan', true);
+    laporanPreview.innerHTML = `<div class="empty">${DATA.baju.length
+      ? '🔎 Tidak ada data baju yang cocok dengan pencarian.'
+      : '📭 Belum ada data baju bola.'}</div>`;
+    if (showToast) toast(DATA.baju.length
+      ? 'Tidak ada data baju yang cocok dengan pencarian'
+      : 'Belum ada data baju bola untuk dilaporkan', true);
     return;
   }
 
   const ukuranCount = {};
-  DATA.baju.forEach(item => {
+  list.forEach(item => {
     ukuranCount[item.ukuran] = (ukuranCount[item.ukuran] || 0) + 1;
   });
 
   let teks = `👕 LAPORAN DATA BAJU BOLA\n`;
   teks += `Tanggal: ${new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })}\n`;
   teks += `━━━━━━━━━━━━━━━━━━━━\n\n`;
-  teks += `📋 Total pesanan: ${DATA.baju.length}\n`;
-  teks += `✅ Lunas: ${DATA.baju.filter(item => item.lunas).length}\n`;
-  teks += `⏳ Belum lunas: ${DATA.baju.filter(item => !item.lunas).length}\n`;
+  teks += `📋 Total pesanan: ${list.length}\n`;
+  teks += `✅ Lunas: ${list.filter(item => getPembayaranBaju(item).lunas).length}\n`;
+  teks += `⏳ Belum lunas: ${list.filter(item => !getPembayaranBaju(item).lunas).length}\n`;
   teks += `📏 Ukuran: ${Object.entries(ukuranCount).map(([ukuran, jumlah]) => `${ukuran} (${jumlah})`).join(', ')}\n\n`;
   teks += `📄 RINCIAN PESANAN\n━━━━━━━━━━━━━━━━━━━━\n`;
-  DATA.baju.forEach((item, index) => {
+  list.forEach((item, index) => {
+    const pembayaran = getPembayaranBaju(item);
     teks += `${index + 1}. ${item.pemain_nama}\n`;
     teks += `   Nama di baju: ${item.nama_baju}\n`;
     teks += `   Nomor: ${item.nomor_punggung} | Ukuran: ${item.ukuran}\n`;
     teks += `   Keterangan: ${item.keterangan || '-'}\n`;
-    teks += `   Status: ${item.lunas ? 'Lunas' : 'Belum lunas'}\n`;
+    teks += `   Dibayar: ${rupiah(pembayaran.dibayar)} dari ${rupiah(pembayaran.target)}\n`;
+    teks += `   Sisa: ${rupiah(pembayaran.sisa)}\n`;
+    teks += `   Status: ${pembayaran.lunas ? 'Lunas' : 'Belum lunas'}\n`;
   });
 
   window._laporanBajuTeks = teks;
   laporanPreview.innerHTML = `<pre>${escapeHtml(teks)}</pre>`;
-  toast('✅ Laporan data baju digenerate');
+  if (showToast) toast('✅ Laporan data baju digenerate');
 }
 
 function copyLaporanBaju() {
@@ -344,16 +445,23 @@ function printLaporanBaju() {
 }
 
 function exportBajuCSV() {
-  if (DATA.baju.length === 0) { toast('Belum ada data baju bola untuk diekspor', true); return; }
-  const header = ['Pemain', 'Nama di Baju', 'Nomor Punggung', 'Ukuran', 'Keterangan', 'Status'];
-  const rows = DATA.baju.map(item => [
-    item.pemain_nama,
-    item.nama_baju,
-    item.nomor_punggung,
-    item.ukuran,
-    item.keterangan || '',
-    item.lunas ? 'Lunas' : 'Belum lunas'
-  ]);
+  const list = getFilteredBaju();
+  if (list.length === 0) { toast('Tidak ada data baju untuk diekspor', true); return; }
+  const header = ['Pemain', 'Nama di Baju', 'Nomor Punggung', 'Ukuran', 'Keterangan', 'Sudah Dibayar', 'Target', 'Sisa', 'Status'];
+  const rows = list.map(item => {
+    const pembayaran = getPembayaranBaju(item);
+    return [
+      item.pemain_nama,
+      item.nama_baju,
+      item.nomor_punggung,
+      item.ukuran,
+      item.keterangan || '',
+      pembayaran.dibayar,
+      pembayaran.target,
+      pembayaran.sisa,
+      pembayaran.lunas ? 'Lunas' : 'Belum lunas'
+    ];
+  });
   const csv = [header, ...rows]
     .map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(','))
     .join('\n');
